@@ -23,6 +23,15 @@ type LaunchElectronProcessOptions = {
   devServerUrlEnvVar: string
 }
 
+/** SIGTERM 送信後に SIGKILL へ昇格するまでの待ち時間 (ms)。 */
+const SIGTERM_TIMEOUT_MS = 5_000
+
+/** SIGKILL 送信後に停止を諦めるまでの最終タイムアウト (ms)。 */
+const SIGKILL_TIMEOUT_MS = 3_000
+
+/** taskkill 応答待ちの最大時間 (ms)。 */
+const TASKKILL_TIMEOUT_MS = 10_000
+
 const require = createRequire(import.meta.url)
 const electronBinary = require('electron')
 
@@ -77,7 +86,7 @@ export function launchElectronProcess(
  * Electron child process を安全に停止する。
  *
  * 停止不要な process は早期 return し、Windows では process tree ごと taskkill、
- * それ以外では SIGTERM と exit 待機を使う。
+ * それ以外では SIGTERM → タイムアウト → SIGKILL のエスカレーション戦略を使う。
  *
  * @param childProcess 停止対象の process
  */
@@ -94,27 +103,69 @@ export async function stopElectronProcess(
   }
 
   childProcess.kill('SIGTERM')
-  await waitForProcessExit(childProcess)
+
+  const exitedGracefully = await waitForProcessExit(
+    childProcess,
+    SIGTERM_TIMEOUT_MS,
+  )
+
+  if (exitedGracefully) {
+    return
+  }
+
+  // SIGTERM でタイムアウトした場合は SIGKILL へ昇格する。
+  childProcess.kill('SIGKILL')
+
+  const exitedAfterKill = await waitForProcessExit(
+    childProcess,
+    SIGKILL_TIMEOUT_MS,
+  )
+
+  if (!exitedAfterKill) {
+    console.warn(
+      `[vite-plugin-electron] Electron process (pid ${childProcess.pid}) did not exit after SIGKILL`,
+    )
+  }
 }
 
 /**
- * child process の終了を待つ。
+ * child process の終了を一定時間待つ。
  *
- * すでに終了済みなら即座に解決し、まだ動作中なら `exit` を待機する。
+ * すでに終了済みなら即座に解決する。タイムアウトを指定した場合、制限時間内に
+ * 終了しなければ false を返す。
  *
  * @param childProcess 終了待ち対象の process
- * @returns process が終了したら解決する Promise
+ * @param timeoutMs 最大待ち時間。0 以下で無制限
+ * @returns 正常に終了した場合 true、タイムアウトした場合 false
  */
-function waitForProcessExit(childProcess: ChildProcess): Promise<void> {
+function waitForProcessExit(
+  childProcess: ChildProcess,
+  timeoutMs: number = 0,
+): Promise<boolean> {
   return new Promise((resolveExit) => {
     if (childProcess.exitCode !== null) {
-      resolveExit()
+      resolveExit(true)
       return
     }
 
-    childProcess.once('exit', () => {
-      resolveExit()
-    })
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const onExit = () => {
+      if (timer !== undefined) {
+        clearTimeout(timer)
+      }
+
+      resolveExit(true)
+    }
+
+    childProcess.once('exit', onExit)
+
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => {
+        childProcess.off('exit', onExit)
+        resolveExit(false)
+      }, timeoutMs)
+    }
   })
 }
 
@@ -123,6 +174,8 @@ function waitForProcessExit(childProcess: ChildProcess): Promise<void> {
  *
  * Electron は子プロセスをぶら下げることがあるため、単一 PID への signal ではなく
  * `taskkill /t /f` を使って tree 全体を止める。
+ *
+ * 一定時間内に taskkill が完了しない場合はエラーとして reject する。
  *
  * @param pid 停止対象の親 process ID
  * @returns 停止完了後に解決する Promise
@@ -134,14 +187,31 @@ async function stopWindowsProcessTree(pid: number): Promise<void> {
       windowsHide: true,
     })
 
-    taskkill.once('error', rejectTaskkill)
+    const timer = setTimeout(() => {
+      taskkill.kill()
+      rejectTaskkill(
+        new Error(
+          `taskkill timed out after ${TASKKILL_TIMEOUT_MS}ms for pid ${pid}`,
+        ),
+      )
+    }, TASKKILL_TIMEOUT_MS)
+
+    taskkill.once('error', (error) => {
+      clearTimeout(timer)
+      rejectTaskkill(error)
+    })
+
     taskkill.once('exit', (code) => {
+      clearTimeout(timer)
+
       if (isSuccessfulWindowsTaskkillExitCode(code)) {
         resolveTaskkill()
         return
       }
 
-      rejectTaskkill(new Error(`taskkill exited with code ${code}`))
+      rejectTaskkill(
+        new Error(`taskkill exited with code ${code} for pid ${pid}`),
+      )
     })
   })
 }

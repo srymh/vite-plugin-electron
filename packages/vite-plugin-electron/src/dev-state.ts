@@ -45,6 +45,20 @@ export function createElectronBuildCoordinator(hasPreloadEntries: boolean) {
         return { type: 'error', error: event.error }
       }
 
+      // watch cycle の開始を示す BUNDLE_START で、該当 environment の ready を戻す。
+      // これにより、前回 cycle の ready 状態が次の cycle へ持ち越されない。
+      if (event.code === 'BUNDLE_START') {
+        if (environmentName === ELECTRON_MAIN_ENVIRONMENT_NAME) {
+          mainReady = false
+        }
+
+        if (environmentName === ELECTRON_PRELOAD_ENVIRONMENT_NAME) {
+          preloadReady = false
+        }
+
+        return { type: 'ignore' }
+      }
+
       if (event.code !== 'END') {
         return { type: 'ignore' }
       }
@@ -57,9 +71,15 @@ export function createElectronBuildCoordinator(hasPreloadEntries: boolean) {
         preloadReady = true
       }
 
-      return mainReady && preloadReady
-        ? { type: 'restart' }
-        : { type: 'ignore' }
+      if (mainReady && preloadReady) {
+        // restart を返した直後にリセットし、次の watch cycle に備える。
+        // BUNDLE_START による個別リセットと合わせて二重に保護する。
+        mainReady = false
+        preloadReady = !hasPreloadEntries
+        return { type: 'restart' }
+      }
+
+      return { type: 'ignore' }
     },
   } satisfies ElectronBuildCoordinator
 }

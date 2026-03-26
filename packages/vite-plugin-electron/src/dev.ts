@@ -163,7 +163,16 @@ async function startElectronDevSession(
   const devServerUrl = resolveDevServerUrl(server, options.rendererDevUrl)
   const hasPreloadEntries = Object.keys(options.preloadEntries).length > 0
   const environmentNames = getElectronWatchEnvironmentNames(hasPreloadEntries)
+
+  // 起動済み dev server の resolved config から必要な設定を引き継ぐ。
+  // createBuilder は InlineConfig を受け取り、内部で config ファイルを再読み込みするため、
+  // root / configFile / mode を合わせれば plugin 解決や alias/define も一致する。
+  const { root, configFile, mode } = server.config
+
   const builder = await createBuilder({
+    root,
+    configFile,
+    mode,
     build: {
       watch: {},
     },

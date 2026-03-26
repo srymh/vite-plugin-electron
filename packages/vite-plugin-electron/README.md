@@ -418,55 +418,48 @@ example 側で debug option を有効にしておくと、`Launch Electron + Ren
 
 優先度つきで、現時点の残課題を整理すると次のとおりです。
 
-### 1. preload あり構成の再起動同期が 2 周目以降に崩れる
+### 解決済み
 
-現状の build coordinator は、main と preload の両方が一度 `END` になったあと、その ready 状態を次の watch cycle 開始時に明示的に戻していません。そのため preload を持つ構成では、初回 build 成功後の 2 回目以降で main 側の `END` が先に届くと、preload の新しい build 完了を待たずに Electron を再起動してしまう可能性があります。
+#### 1. preload あり構成の再起動同期が 2 周目以降に崩れる (解決済み)
 
-この状態では、main だけが新しく、preload は 1 サイクル前の生成物を読んでいる一時的不整合が起こりえます。単純な保存操作では見えにくい一方、main と preload を同時に更新する変更では再現しやすく、dev 時の挙動としては優先度高く詰めるべき課題です。
+build coordinator が restart 後に ready 状態をリセットしていなかった問題を修正しました。`BUNDLE_START` イベント受信時に該当 environment の ready フラグをリセットし、restart 判定直後にも全体をリセットする二重保護を導入しています。2 周目以降の連続 build を含むテストも追加しました。
 
-対処の方向としては、watch cycle の開始を表す event を契機に ready 状態をリセットするか、cycle 単位で main/preload の完了を追跡する state へ組み替える必要があります。あわせて、初回成功だけでなく 2 回目以降の連続 build を含むテストを追加する必要があります。
+#### 2. dev 用 builder が起動中の Vite 設定を完全には引き継いでいない (解決済み)
 
-### 2. dev 用 builder が起動中の Vite 設定を完全には引き継いでいない
+`createBuilder()` 呼び出し時に、起動済み Vite dev server の `root`、`configFile`、`mode` を引き継ぐようにしました。これにより dev server 本体と watch builder 側で config file 解決、plugin 適用、alias / define の結果が一致します。
 
-現状の dev orchestration では、Electron 側 watch build 用に `createBuilder()` を別途呼び出していますが、その際に起動中の Vite dev server が持っている resolved config をそのまま再利用していません。結果として、root、config file、他 plugin による設定変更、alias、define などが dev server 本体と watch builder 側でずれる余地があります。
+#### 5. 非 Windows では Electron 停止待ちが無期限化する余地がある (解決済み)
 
-この plugin は Vite root 基準の path 解決と monorepo 対応を前提にしているため、dev server と別 builder の設定差分は設計意図と相性がよくありません。desktop app が monorepo 配下にある構成や、他 plugin が環境依存の設定を差し込む構成では、custom environment の見え方や path 解決結果がずれて破綻する可能性があります。
+SIGTERM 送信後に 5 秒のタイムアウトを設け、応答がない場合は SIGKILL へ昇格するエスカレーション戦略を導入しました。SIGKILL 後もさらに 3 秒のフェールセーフ待機を設けています。
 
-対処の方向としては、起動済み server の resolved config から必要な設定を確実に引き継ぐか、そもそも Electron 側 watch build を dev server の environment 文脈へより強く寄せる必要があります。少なくとも root/config/plugin 解決が一致していることを保証する確認テストは必要です。
+#### 6. Windows 固有の終了戦略はまだ改善余地がある (改善済み)
 
-### 3. production renderer の責務境界がまだ固まりきっていない
+`taskkill` にも 10 秒のタイムアウトを追加し、エラーメッセージに PID を含めるようにしました。`taskkill` 自体がハングする稀なケースにも対処できます。
 
-example では external renderer の build 済み HTML を Electron main から読む構成まで確認できています。ただし plugin としては、production renderer の配置、解決、load の責務をどこまで持つかがまだ最終確定ではありません。
+### 未解決
 
-今後、同居構成と外部構成の両方で破綻しにくい API にするには、この責務境界をもう少し明文化する必要があります。
+#### 3. production renderer の責務境界
 
-### 4. preload API の高度なユースケースは未整理
+この plugin は production renderer の配置、解決、load を直接の責務としません。
+
+- **同居構成**: renderer の build 出力は Vite 標準の `dist/` に入ります。Electron main から `loadFile(path.join(__dirname, '../dist/index.html'))` のように読むのは利用者側の責務です。
+- **外部構成**: renderer app は別の Vite app として独立に build されます。その build 出力の配置先とロード方法は利用者側が管理します。
+
+plugin が担当するのは dev 時の renderer URL 解決と環境変数への注入までです。production 時のファイル配置戦略は意図的にスコープ外としています。
+
+#### 4. preload API の高度なユースケースは未整理
 
 単体指定、配列指定、名前付き map には対応していますが、より複雑な preload 設計や、bridge を複数層に分けるような運用までは整理できていません。
 
 この plugin の責務を広げすぎない範囲で、どこまで支援するかを見極める必要があります。
 
-### 5. 非 Windows では Electron 停止待ちが無期限化する余地がある
-
-Windows では `taskkill /t /f` を使って process tree ごと停止する方針を取っていますが、非 Windows 側は `SIGTERM` を送ったあとに単純に `exit` を待つだけの実装です。このため Electron app 側が終了を引き延ばしたり、子プロセスの都合で即座に落ちなかったりすると、再起動処理全体が待ち続ける可能性があります。
-
-この問題は通常の開発では表面化しにくいものの、終了処理を持つ main process や、ネイティブモジュールや外部プロセスと組み合わせるアプリでは現実的に起こりえます。再起動要求が queue されていても、停止待ちが返らなければ scheduler 全体が進まなくなります。
-
-対処の方向としては、一定時間で `SIGKILL` へ昇格する timeout 戦略、child process tree を含む停止方法の見直し、停止失敗時に次の restart をどう扱うかの方針整理が必要です。Windows 優先で検証している現状でも、クロスプラットフォーム plugin としては未解決事項として明記しておくべきです。
-
-### 6. Windows 固有の終了戦略はまだ改善余地がある
-
-現状でも Windows で Electron のプロセスツリーを停止できる前提までは整えていますが、派生プロセスや終了タイミングが複雑なケースまで十分に詰め切ったわけではありません。
-
-dev orchestration をより安定させるには、この領域の検証余地が残っています。
-
-### 7. dev 時の inspect から Electron environment の module graph が見えない
+#### 7. dev 時の inspect から Electron environment の module graph が見えない
 
 現状の dev orchestration では、`electron_main` と `electron_preload` の watch build を Vite dev server 本体の通常 module graph ではなく、別途生成した builder で回しています。そのため `vite-plugin-inspect` の UI では environment 名は見えても、module graph や変換履歴が空に見えることがあります。
 
 理論上は、Electron 側の dev build を Vite dev server 側の environment 文脈へさらに寄せることで改善できる可能性があります。ただし watch build、再起動制御、custom environment の扱いをまとめて見直す必要があり、現時点では最低優先度です。
 
-### 8. external renderer 側の `base` 制御は plugin の直接スコープ外
+#### 8. external renderer 側の `base` 制御は plugin の直接スコープ外
 
 external renderer mode では、renderer app は desktop app とは別の Vite app として build されます。そのため renderer 側の `base` のような設定は、desktop 側へ入れたこの plugin だけで直接上書きできません。
 

@@ -327,6 +327,118 @@ describe('electron plugin', () => {
     ).toEqual({ type: 'restart' })
   })
 
+  it('preload あり構成で 2 周目以降も main と preload の両方を待つ', () => {
+    const coordinator = createElectronBuildCoordinator(true)
+
+    // --- 1 周目: main → preload の順で END ---
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_preload', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'restart' })
+
+    // --- 2 周目: main の END だけでは restart しない ---
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'BUNDLE_START',
+      }),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'ignore' })
+
+    // preload も完了して初めて restart
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_preload', {
+        code: 'BUNDLE_START',
+      }),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_preload', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'restart' })
+
+    // --- 3 周目: preload → main の逆順でも同様に動作する ---
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_preload', {
+        code: 'BUNDLE_START',
+      }),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_preload', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'BUNDLE_START',
+      }),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'restart' })
+  })
+
+  it('main のみ構成でも 2 周目以降で restart がリセットされる', () => {
+    const coordinator = createElectronBuildCoordinator(false)
+
+    // 1 周目
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'restart' })
+
+    // 2 周目: BUNDLE_START なしでも restart 後にリセットされている
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'restart' })
+  })
+
+  it('BUNDLE_START が来ると該当 environment の ready がリセットされる', () => {
+    const coordinator = createElectronBuildCoordinator(true)
+
+    // 初回: main を ready にする
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'ignore' })
+
+    // main 側だけ BUNDLE_START が来て ready が取り消される
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'BUNDLE_START',
+      }),
+    ).toEqual({ type: 'ignore' })
+
+    // preload が END しても main が未完了なので restart しない
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_preload', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'ignore' })
+
+    // main が再度 END になれば restart する
+    expect(
+      resolveElectronBuildEventOutcome(coordinator, 'electron_main', {
+        code: 'END',
+      }),
+    ).toEqual({ type: 'restart' })
+  })
+
   it('build error を event outcome として表に出す', () => {
     // Arrange
     const coordinator = createElectronBuildCoordinator(false)
