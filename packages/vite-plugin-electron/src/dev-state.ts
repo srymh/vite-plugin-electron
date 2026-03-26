@@ -5,14 +5,20 @@ import {
   type ElectronEnvironmentName,
 } from './types'
 
-type ElectronBuildEventOutcome =
+export type ElectronBuildEventOutcome =
   | { type: 'ignore' }
   | { type: 'error'; error?: unknown }
   | { type: 'restart' }
 
 /** restart scheduler が返す、次のアクション判定結果。 */
-type RestartSchedulerOutcome = {
+export type RestartSchedulerOutcome = {
   shouldStart: boolean
+}
+
+/** restart scheduler の公開インターフェース。 */
+export type RestartScheduler = {
+  requestRestart(): RestartSchedulerOutcome
+  finishRestart(): RestartSchedulerOutcome
 }
 
 /** build event を受けて restart 可否を判定する coordinator の契約。 */
@@ -32,7 +38,9 @@ export type ElectronBuildCoordinator = {
  * @param hasPreloadEntries preload environment を待つ必要があるか
  * @returns build event coordinator
  */
-export function createElectronBuildCoordinator(hasPreloadEntries: boolean) {
+export function createElectronBuildCoordinator(
+  hasPreloadEntries: boolean,
+): ElectronBuildCoordinator {
   let mainReady = false
   let preloadReady = !hasPreloadEntries
 
@@ -111,7 +119,7 @@ export function resolveElectronBuildEventOutcome(
  *
  * @returns restart request を coalesce する scheduler
  */
-export function createRestartScheduler() {
+export function createRestartScheduler(): RestartScheduler {
   let isRunning = false
   let hasPendingRestart = false
 

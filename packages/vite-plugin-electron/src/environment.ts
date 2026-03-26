@@ -1,3 +1,5 @@
+import type { UserConfig } from 'vite'
+
 import {
   ELECTRON_MAIN_ENVIRONMENT_NAME,
   ELECTRON_PRELOAD_ENVIRONMENT_NAME,
@@ -60,7 +62,7 @@ export function createElectronEnvironmentDefinitions(
 export function createElectronEnvironmentBuildConfig(
   name: ElectronEnvironmentName,
   resolvedOptions: ResolvedElectronPluginOptions,
-) {
+): UserConfig {
   const { buildOptions, outDir, mainEntry, preloadEntries } = resolvedOptions
   const shouldEmptyOutDir =
     name === ELECTRON_MAIN_ENVIRONMENT_NAME
@@ -69,7 +71,7 @@ export function createElectronEnvironmentBuildConfig(
 
   return {
     build: {
-      outDir,
+      outDir: outDir,
       emptyOutDir: shouldEmptyOutDir,
       copyPublicDir: buildOptions.copyPublicDir ?? false,
       emitAssets: buildOptions.emitAssets ?? false,
@@ -105,7 +107,7 @@ export function createElectronEnvironmentBuildConfig(
  *
  * @returns client environment 用の最小 build 設定
  */
-export function createExternalRendererClientBuildConfig() {
+export function createExternalRendererClientBuildConfig(): UserConfig {
   return {
     build: {
       copyPublicDir: false,
@@ -126,7 +128,7 @@ export function createExternalRendererClientBuildConfig() {
  */
 export function removeExternalRendererClientBuildOutputs(
   bundle: Record<string, unknown>,
-) {
+): void {
   for (const fileName of Object.keys(bundle)) {
     delete bundle[fileName]
   }

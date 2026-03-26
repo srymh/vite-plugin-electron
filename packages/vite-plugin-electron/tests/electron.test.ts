@@ -83,9 +83,11 @@ describe('electron plugin', () => {
     )
 
     // Assert
-    expect(
-      config.build?.rolldownOptions?.input?.main?.replaceAll('\\', '/'),
-    ).toContain('electron/main.ts')
+    const mainInput = config.build?.rolldownOptions?.input as Record<
+      string,
+      string
+    >
+    expect(mainInput?.main?.replaceAll('\\', '/')).toContain('electron/main.ts')
     expect(config.build?.rolldownOptions?.output).toMatchObject({
       entryFileNames: '[name].js',
       format: 'es',
@@ -112,22 +114,20 @@ describe('electron plugin', () => {
     )
 
     // Assert
-    expect(config.build?.rolldownOptions?.input).toMatchObject({
+    const preloadInput = config.build?.rolldownOptions?.input as Record<
+      string,
+      string
+    >
+    expect(preloadInput).toMatchObject({
       preload: expect.any(String),
       settings: expect.any(String),
     })
-    expect(
-      String(config.build?.rolldownOptions?.input?.preload).replaceAll(
-        '\\',
-        '/',
-      ),
-    ).toContain('electron/preload.ts')
-    expect(
-      String(config.build?.rolldownOptions?.input?.settings).replaceAll(
-        '\\',
-        '/',
-      ),
-    ).toContain('electron/settings-preload.ts')
+    expect(String(preloadInput?.preload).replaceAll('\\', '/')).toContain(
+      'electron/preload.ts',
+    )
+    expect(String(preloadInput?.settings).replaceAll('\\', '/')).toContain(
+      'electron/settings-preload.ts',
+    )
     expect(config.build?.rolldownOptions?.output).toMatchObject({
       entryFileNames: '[name].cjs',
       format: 'cjs',

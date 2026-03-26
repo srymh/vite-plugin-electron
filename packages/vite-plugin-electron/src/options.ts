@@ -26,7 +26,7 @@ import {
  */
 export function resolveElectronPluginOptions(
   options: ElectronPluginOptions = {},
-  cwd = process.cwd(),
+  cwd: string = process.cwd(),
 ): ResolvedElectronPluginOptions {
   const buildOptions = options.build ?? {}
   const preloadEntries = Object.fromEntries(
@@ -143,7 +143,7 @@ export function createValidatedPreloadEntryMap(
  * @param source source path
  * @throws 予約語、空文字、パス区切りを含む名前などが見つかった場合
  */
-export function validatePreloadEntry(name: string, source: string) {
+export function validatePreloadEntry(name: string, source: string): void {
   if (!name) {
     throw new Error('Preload entry names must not be empty')
   }
@@ -273,7 +273,7 @@ export function getElectronSpawnArgs(
  */
 export function getElectronSpawnEnv(
   devServerUrl: string,
-  devServerUrlEnvVar = DEFAULT_RENDERER_DEV_SERVER_URL_ENV_VAR,
+  devServerUrlEnvVar: string = DEFAULT_RENDERER_DEV_SERVER_URL_ENV_VAR,
   env: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   return {
@@ -324,7 +324,7 @@ export function isSuccessfulWindowsTaskkillExitCode(
  */
 export function createOutDirIgnorePatterns(
   outDir: string,
-  cwd = process.cwd(),
+  cwd: string = process.cwd(),
 ): string[] {
   const normalizedOutDir = normalizeGlobPath(
     relative(cwd, resolve(cwd, outDir)),

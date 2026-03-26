@@ -66,7 +66,7 @@ type ElectronDevOptions = {
 export function registerElectronDevServer(
   server: ViteDevServer,
   options: ElectronDevOptions,
-) {
+): void {
   const httpServer = server.httpServer
 
   if (!httpServer) {
@@ -129,6 +129,18 @@ export function registerElectronDevServer(
         ...options,
         onRestart(childProcess) {
           activeElectronProcess = childProcess
+
+          // Electron がユーザー操作（ウィンドウを閉じるなど）で自発的に終了した場合、
+          // Vite dev server ごとプロセスを停止する。
+          // restart による意図的な停止では closeElectron() が先に
+          // activeElectronProcess を undefined にするため、
+          // このガード条件で誤って exit しない。
+          childProcess.once('exit', () => {
+            if (activeElectronProcess === childProcess) {
+              process.exit(0)
+            }
+          })
+
           options.onRestart(childProcess)
         },
       })
