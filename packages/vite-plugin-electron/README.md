@@ -24,7 +24,7 @@ package の配布ビルドは `tsdown` を使って `dist` へ出力します。
 
 この package 自体は Electron アプリの preview や packaging を直接担当しません。preview、installer 生成、electron-builder 設定はサンプルアプリ側の責務です。
 
-0.1.0 時点では、次を優先しています。
+現時点では、次を優先しています。
 
 - `build.outDir` を変えても dev 監視が壊れにくい
 - watch build 完了時の Electron 再起動が競合しにくい
@@ -398,7 +398,7 @@ example 側で debug option を有効にしておくと、`Launch Electron + Ren
 
 ## Current Status
 
-現在のバージョンは `0.1.0` です。
+現在のバージョンは [package.json](package.json) の `version` フィールドを参照してください。
 
 この段階では、次の状態を目標にしています。
 
@@ -416,29 +416,49 @@ example 側で debug option を有効にしておくと、`Launch Electron + Ren
 
 ## Remaining Issues
 
-優先度つきで、現時点の残課題を整理すると次のとおりです。
-
-### 解決済み
-
-#### 1. preload あり構成の再起動同期が 2 周目以降に崩れる (解決済み)
-
-build coordinator が restart 後に ready 状態をリセットしていなかった問題を修正しました。`BUNDLE_START` イベント受信時に該当 environment の ready フラグをリセットし、restart 判定直後にも全体をリセットする二重保護を導入しています。2 周目以降の連続 build を含むテストも追加しました。
-
-#### 2. dev 用 builder が起動中の Vite 設定を完全には引き継いでいない (解決済み)
-
-`createBuilder()` 呼び出し時に、起動済み Vite dev server の `root`、`configFile`、`mode` を引き継ぐようにしました。これにより dev server 本体と watch builder 側で config file 解決、plugin 適用、alias / define の結果が一致します。
-
-#### 5. 非 Windows では Electron 停止待ちが無期限化する余地がある (解決済み)
-
-SIGTERM 送信後に 5 秒のタイムアウトを設け、応答がない場合は SIGKILL へ昇格するエスカレーション戦略を導入しました。SIGKILL 後もさらに 3 秒のフェールセーフ待機を設けています。
-
-#### 6. Windows 固有の終了戦略はまだ改善余地がある (改善済み)
-
-`taskkill` にも 10 秒のタイムアウトを追加し、エラーメッセージに PID を含めるようにしました。`taskkill` 自体がハングする稀なケースにも対処できます。
+現時点の残課題を分類して整理しています。
 
 ### 未解決
 
-#### 3. production renderer の責務境界
+#### `removeExternalRendererClientBuildOutputs` の型安全性
+
+`environment.ts` の `removeExternalRendererClientBuildOutputs` は引数を `Record<string, unknown>` として受け取り、呼び出し側の `electron.ts` で `bundle as Record<string, unknown>` と assertion しています。Vite の `OutputBundle` 型を直接使えば assertion を除去でき、型安全性が向上します。ただし Vite 内部型への依存度とのトレードオフがあります。
+
+#### `asBuildWatcher` のランタイム型チェック強化
+
+`dev.ts` の `asBuildWatcher` は `'on' in value` で duck-typing していますが、`typeof value.on === 'function'` まで確認した方が堅牢です。現状でも実用上の問題は起きにくいですが、防御的プログラミングの観点で改善の余地があります。
+
+#### `resolvedUrls` の参照タイミングリスク
+
+`dev.ts` の `resolveDevServerUrl` は `httpServer` の `listening` イベント後に `server.resolvedUrls` を参照しています。Vite の現行実装では `listening` 後に設定されるため問題ありませんが、ドキュメントされた保証ではないため、Vite のメジャーアップデート時に壊れるリスクがあります。`rendererDevUrl` を明示指定する external mode では影響しません。
+
+#### Electron 終了時の `process.exit(0)` 直接呼び出し
+
+`dev.ts` の `registerElectronDevServer` 内で、Electron プロセスの終了を検知すると `process.exit(0)` を呼んでいます。Electron 開発では一般的な挙動ですが、`process.exit()` は cleanup を飛ばす可能性があります。`server.close()` を経由してから終了する方がクリーンシャットダウンになります。DX の即時性とのトレードオフです。
+
+#### build coordinator のステートリセットの可読性
+
+`dev-state.ts` の `createElectronBuildCoordinator` で、restart 判定後に `preloadReady = !hasPreloadEntries` としてリセットしています。preload なし構成では常に `true` にリセットされるのは正しいですが、初見では意図が読み取りにくいため、コメントで補足する価値があります。
+
+#### preload API の高度なユースケースは未整理
+
+単体指定、配列指定、名前付き map には対応していますが、より複雑な preload 設計や、bridge を複数層に分けるような運用までは整理できていません。
+
+この plugin の責務を広げすぎない範囲で、どこまで支援するかを見極める必要があります。
+
+#### dev 時の inspect から Electron environment の module graph が見えない
+
+現状の dev orchestration では、`electron_main` と `electron_preload` の watch build を Vite dev server 本体の通常 module graph ではなく、別途生成した builder で回しています。そのため `vite-plugin-inspect` の UI では environment 名は見えても、module graph や変換履歴が空に見えることがあります。
+
+理論上は、Electron 側の dev build を Vite dev server 側の environment 文脈へさらに寄せることで改善できる可能性があります。ただし watch build、再起動制御、custom environment の扱いをまとめて見直す必要があり、現時点では最低優先度です。
+
+#### I/O 層のテストカバレッジ
+
+`dev.ts` と `process.ts` はテスト対象外です。設計上 pure logic に集中したテスト方針を取っていますが、`process.ts` の `waitForProcessExit` や `stopWindowsProcessTree` のタイムアウト挙動は EventEmitter のモックで検証可能です。`dev.ts` の `resolveDevServerUrl` のエッジケース（`resolvedUrls` が `null` の場合）も同様に検証可能です。
+
+### スコープ外
+
+#### production renderer の責務境界
 
 この plugin は production renderer の配置、解決、load を直接の責務としません。
 
@@ -447,20 +467,8 @@ SIGTERM 送信後に 5 秒のタイムアウトを設け、応答がない場合
 
 plugin が担当するのは dev 時の renderer URL 解決と環境変数への注入までです。production 時のファイル配置戦略は意図的にスコープ外としています。
 
-#### 4. preload API の高度なユースケースは未整理
-
-単体指定、配列指定、名前付き map には対応していますが、より複雑な preload 設計や、bridge を複数層に分けるような運用までは整理できていません。
-
-この plugin の責務を広げすぎない範囲で、どこまで支援するかを見極める必要があります。
-
-#### 7. dev 時の inspect から Electron environment の module graph が見えない
-
-現状の dev orchestration では、`electron_main` と `electron_preload` の watch build を Vite dev server 本体の通常 module graph ではなく、別途生成した builder で回しています。そのため `vite-plugin-inspect` の UI では environment 名は見えても、module graph や変換履歴が空に見えることがあります。
-
-理論上は、Electron 側の dev build を Vite dev server 側の environment 文脈へさらに寄せることで改善できる可能性があります。ただし watch build、再起動制御、custom environment の扱いをまとめて見直す必要があり、現時点では最低優先度です。
-
-#### 8. external renderer 側の `base` 制御は plugin の直接スコープ外
+#### external renderer 側の `base` 制御
 
 external renderer mode では、renderer app は desktop app とは別の Vite app として build されます。そのため renderer 側の `base` のような設定は、desktop 側へ入れたこの plugin だけで直接上書きできません。
 
-理論上は companion plugin や config helper を別途用意して、renderer app 側でも同じ package を使う形にすれば制御できます。ただしこれは現在の plugin 単体の責務からは外れており、現時点では最低優先度よりさらに低い検討事項です。
+理論上は companion plugin や config helper を別途用意して、renderer app 側でも同じ package を使う形にすれば制御できます。ただしこれは現在の plugin 単体の責務からは外れています。
