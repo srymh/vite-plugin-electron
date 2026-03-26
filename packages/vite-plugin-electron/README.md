@@ -432,9 +432,13 @@ example 側で debug option を有効にしておくと、`Launch Electron + Ren
 
 `dev.ts` の `resolveDevServerUrl` は `httpServer` の `listening` イベント後に `server.resolvedUrls` を参照しています。Vite の現行実装では `listening` 後に設定されるため問題ありませんが、ドキュメントされた保証ではないため、Vite のメジャーアップデート時に壊れるリスクがあります。`rendererDevUrl` を明示指定する external mode では影響しません。
 
-#### Electron 終了時の `process.exit(0)` 直接呼び出し
+#### Electron 終了時の exit code
 
-`dev.ts` の `registerElectronDevServer` 内で、Electron プロセスの終了を検知すると `process.exit(0)` を呼んでいます。Electron 開発では一般的な挙動ですが、`process.exit()` は cleanup を飛ばす可能性があります。`server.close()` を経由してから終了する方がクリーンシャットダウンになります。DX の即時性とのトレードオフです。
+`dev.ts` の `registerElectronDevServer` 内で、Electron プロセスがユーザー操作（ウィンドウを閉じるなど）で自発的に終了した場合、`server.close()` で Vite dev server を graceful にシャットダウンしてから `process.exit(1)` で終了しています。
+
+exit code を 0 ではなく 1 にしている理由は、`pnpm --parallel` が子プロセスの終了コードを監視しており、非ゼロで終了した場合のみ残りの兄弟プロセスを停止するためです。exit(0) だと external renderer 構成（`dev:multiple` のように web dev server と desktop dev server を並列実行するケース）で、desktop が終了しても web dev server が残り続けてしまいます。dev server の中断終了なので exit code 1 は意味的にも妥当です。
+
+この挙動により、ターミナルに `ELIFECYCLE` エラーメッセージが表示されることがありますが、実害はありません。
 
 #### build coordinator のステートリセットの可読性
 

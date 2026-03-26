@@ -59,6 +59,11 @@ export async function restartElectronProcess(
  * debug 有効時は main process inspector の待受情報を標準出力へ出し、VS Code からの attach
  * を追いやすくしている。
  *
+ * macOS / Linux では `detached: true` で起動し、Electron を独自のプロセスグループリーダーに
+ * する。停止時に `process.kill(-pid)` でグループ全体を落とせるようにするためである。
+ * Windows では `detached` は新しいコンソールウィンドウを生むため使わず、代わりに
+ * `taskkill /t` でプロセスツリーごと停止する。
+ *
  * @param options 起動設定
  * @returns 起動した child process
  */
@@ -76,17 +81,26 @@ export function launchElectronProcess(
     )
   }
 
+  const isWindows = process.platform === 'win32'
+
   return spawn(electronBinary, electronArgs, {
     stdio: 'inherit',
     env: getElectronSpawnEnv(options.devServerUrl, options.devServerUrlEnvVar),
+    detached: !isWindows,
   })
 }
 
 /**
  * Electron child process を安全に停止する。
  *
- * 停止不要な process は早期 return し、Windows では process tree ごと taskkill、
- * それ以外では SIGTERM → タイムアウト → SIGKILL のエスカレーション戦略を使う。
+ * 停止不要な process は早期 return し、プラットフォームに応じた手段でプロセスツリー
+ * 全体を停止する。
+ *
+ * - **Windows**: `taskkill /t /f` でプロセスツリーを強制終了する。
+ * - **macOS / Linux**: `process.kill(-pid)` でプロセスグループ全体へ signal を送る。
+ *   `launchElectronProcess` が `detached: true` で起動しているため、Electron が
+ *   プロセスグループリーダーとなり、negative PID で GPU プロセスなどの子も含めて
+ *   一括停止できる。SIGTERM → タイムアウト → SIGKILL のエスカレーション戦略を使う。
  *
  * @param childProcess 停止対象の process
  */
@@ -102,7 +116,26 @@ export async function stopElectronProcess(
     return
   }
 
-  childProcess.kill('SIGTERM')
+  await stopProcessGroup(childProcess)
+}
+
+/**
+ * macOS / Linux でプロセスグループ全体を SIGTERM → SIGKILL で停止する。
+ *
+ * `process.kill(-pid, signal)` は negative PID を使って対象のプロセスグループ全体に
+ * signal を送る POSIX の仕組みである。`launchElectronProcess` が `detached: true` で
+ * 起動した Electron がグループリーダーとなっているため、GPU プロセスなどの子プロセスも
+ * まとめて停止できる。
+ *
+ * negative PID への signal 送信が失敗した場合（既に終了済みなど）は、フォールバック
+ * として child process 単体へ直接 signal を送る。
+ *
+ * @param childProcess 停止対象の process（PID 確定済み）
+ */
+async function stopProcessGroup(
+  childProcess: ChildProcess & { pid: number },
+): Promise<void> {
+  killProcessGroup(childProcess, 'SIGTERM')
 
   const exitedGracefully = await waitForProcessExit(
     childProcess,
@@ -114,7 +147,7 @@ export async function stopElectronProcess(
   }
 
   // SIGTERM でタイムアウトした場合は SIGKILL へ昇格する。
-  childProcess.kill('SIGKILL')
+  killProcessGroup(childProcess, 'SIGKILL')
 
   const exitedAfterKill = await waitForProcessExit(
     childProcess,
@@ -125,6 +158,27 @@ export async function stopElectronProcess(
     console.warn(
       `[vite-plugin-electron] Electron process (pid ${childProcess.pid}) did not exit after SIGKILL`,
     )
+  }
+}
+
+/**
+ * プロセスグループ全体へ signal を送り、失敗時は child process 単体にフォールバックする。
+ *
+ * negative PID への `process.kill` は、対象プロセスが既に終了していると ESRCH を投げる
+ * ため、try/catch で吸収する。
+ *
+ * @param childProcess signal 送信先の process
+ * @param signal 送信する signal
+ */
+function killProcessGroup(
+  childProcess: ChildProcess & { pid: number },
+  signal: NodeJS.Signals,
+): void {
+  try {
+    process.kill(-childProcess.pid, signal)
+  } catch {
+    // プロセスグループが既に存在しない場合は child process 単体に試みる。
+    childProcess.kill(signal)
   }
 }
 

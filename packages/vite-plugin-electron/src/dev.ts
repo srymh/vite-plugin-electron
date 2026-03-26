@@ -137,7 +137,16 @@ export function registerElectronDevServer(
           // このガード条件で誤って exit しない。
           childProcess.once('exit', () => {
             if (activeElectronProcess === childProcess) {
-              process.exit(0)
+              // Vite dev server を graceful に閉じてからプロセスを終了する。
+              //
+              // exit code を 0 ではなく 1 にしている理由:
+              // pnpm --parallel は子プロセスが非ゼロで終了した場合のみ、
+              // 残りの兄弟プロセスを停止する。exit(0) だと external renderer
+              // 構成（dev:multiple）で web dev server が残り続けてしまう。
+              // dev server の中断終了なので exit code 1 は意味的にも妥当。
+              void server.close().finally(() => {
+                process.exit(1)
+              })
             }
           })
 
