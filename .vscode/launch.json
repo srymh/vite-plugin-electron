@@ -1,0 +1,83 @@
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "🔴Launch Electron + Renderer Debug (Single Package Example)",
+      "configurations": [
+        "🚀 Launch Vite Dev (Single Package Example)",
+        "🎛️ Attach Electron Main (Single Package Example)",
+        "💻 Attach Electron Renderer (Single Package Example)"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "🔴Launch Monorepo Electron + Renderer Debug (Multiple Package Example)",
+      "configurations": [
+        "🚀 Launch Monorepo Dev (Multiple Package Example)",
+        "🎛️ Attach Monorepo Electron Main (Multiple Package Example)",
+        "💻 Attach Monorepo Electron Renderer (Multiple Package Example)"
+      ],
+      "stopAll": true
+    }
+  ],
+  "configurations": [
+    {
+      "name": "🚀 Launch Vite Dev (Single Package Example)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev:single",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "🎛️ Attach Electron Main (Single Package Example)",
+      "type": "node",
+      "request": "attach",
+      "address": "localhost",
+      "port": 9229,
+      "restart": true,
+      "timeout": 30000,
+      "cwd": "${workspaceFolder}/example-single",
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💻 Attach Electron Renderer (Single Package Example)",
+      "type": "chrome",
+      "request": "attach",
+      "address": "localhost",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/example-single",
+      "sourceMaps": true,
+      "timeout": 30000
+    },
+    {
+      "name": "🚀 Launch Monorepo Dev (Multiple Package Example)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev:multiple",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "🎛️ Attach Monorepo Electron Main (Multiple Package Example)",
+      "type": "node",
+      "request": "attach",
+      "address": "localhost",
+      "port": 9229,
+      "restart": true,
+      "timeout": 30000,
+      "cwd": "${workspaceFolder}/example-multiple/desktop",
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💻 Attach Monorepo Electron Renderer (Multiple Package Example)",
+      "type": "chrome",
+      "request": "attach",
+      "address": "localhost",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/example-multiple/web",
+      "sourceMaps": true,
+      "timeout": 30000
+    }
+  ]
+}

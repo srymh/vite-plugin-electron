@@ -1,0 +1,473 @@
+# vite-plugin-electron
+
+Vite 8 の Environment API を使って Electron main process を扱うための、小さな実験的 plugin です。
+
+この plugin は Electron main/preload 用の custom environment を追加し、次をまとめて扱います。
+
+- `vite dev` で renderer dev server を起動する
+- Electron main を watch build する
+- build 完了ごとに Electron を再起動する
+- `vite build` で client と Electron 側をまとめてビルドする
+- VS Code から main / renderer の両方へ attach しやすくする
+- renderer 同居構成と external renderer 構成の両方を扱う
+
+この README は package 単体の詳細仕様をまとめたものです。workspace 全体の構成は ../../README.md、利用例は ../../example-single/README.md と ../../example-multiple/README.md を参照してください。
+
+## Overview
+
+この package の公開入口は [src/index.ts](src/index.ts) です。ここから `electron` と各 option 型を再 export します。
+
+package の配布ビルドは `tsdown` を使って `dist` へ出力します。現行の package 設定では次の export surface を持ちます。
+
+- `import` -> `./dist/index.mjs`
+- `types` -> `./dist/index.d.mts`
+
+この package 自体は Electron アプリの preview や packaging を直接担当しません。preview、installer 生成、electron-builder 設定はサンプルアプリ側の責務です。
+
+0.1.0 時点では、次を優先しています。
+
+- `build.outDir` を変えても dev 監視が壊れにくい
+- watch build 完了時の Electron 再起動が競合しにくい
+- Windows でも Electron プロセスツリーを停止できる
+- preload 設定を複数の形式で書ける
+- plugin option の型を公開して設定を書きやすくする
+- plugin 内部の責務境界を明確にして保守しやすくする
+- Vite root 基準の path 解決で monorepo に載せやすくする
+- renderer を同居構成と外部構成の両方で扱いやすくする
+
+## Quick Start
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import {
+  electron,
+  type ElectronPluginOptions,
+} from '@srymh/vite-plugin-electron'
+
+const electronOptions: ElectronPluginOptions = {
+  main: 'electron/main.ts',
+  preload: 'electron/preload.ts',
+  debug: {
+    enabled: true,
+    port: 9229,
+    rendererPort: 9222,
+  },
+  build: {
+    outDir: 'dist-electron',
+    sourcemap: true,
+    minify: false,
+  },
+}
+
+export default defineConfig({
+  plugins: [react(), electron(electronOptions)],
+})
+```
+
+この構成では `electron/preload.ts` を build し、`electron/main.ts` から `BrowserWindow` の `webPreferences.preload` へ渡します。preload の生成物は `.cjs` になり、example 側では `sandbox: true` を維持したまま読み込めます。
+
+同居型では renderer dev server URL は既定で `VITE_DEV_SERVER_URL` に入ります。外部 renderer を使う場合は `renderer.devUrl` と `renderer.devUrlEnvVar` で差し替えます。external renderer mode では plugin が `appType: 'custom'` と空の仮想 client entry を使うため、desktop package 側に `index.html` を置かなくても `vite build` を通せます。
+
+この plugin は build 時に `builder: {}` を自動で有効化するため、利用側の script で `vite build --app` を明示する必要はありません。
+
+## Development
+
+package 直下で実行するコマンド:
+
+```bash
+pnpm build
+pnpm test
+pnpm lint
+```
+
+意味:
+
+- `pnpm build`: `tsdown` で package 用の ESM と d.ts を `dist` へ出力します。
+- `pnpm test`: `vitest run` で helper 中心のテストを実行します。
+- `pnpm lint`: package 配下の lint を実行します。
+
+workspace root からは、root の `pnpm build` と `pnpm test` がこの package を対象に実行されます。
+
+## API Summary
+
+`electron(options)` は次の 5 つの設定を受け取ります。
+
+- `renderer`: renderer の参照方法
+- `main`: Electron main entry
+- `preload`: preload entry 設定
+- `build`: Electron 側 build 設定
+- `debug`: dev 時の debugger 設定
+
+公開 API としての `electron(options)` の責務は次のとおりです。
+
+- 利用者オプションを内部で扱いやすい形へ正規化する
+- `electron_main` と `electron_preload` の custom environment を登録する
+- Electron 向け build 設定を environment ごとに差し込む
+- `vite dev` 時に Electron watch build と再起動 orchestration を起動する
+- renderer 同居構成では自身の Vite dev server を使い、外部構成では指定 URL を使う
+
+逆に、次の詳細は公開 API の外側に置いています。
+
+- build 完了イベントの細かな判定
+- restart 要求の coalescing
+- Electron child process の起動と停止
+- Windows 固有の process tree 終了処理
+
+これらは内部 module に分離してあり、利用者は通常意識する必要がありません。
+
+## Exported Types
+
+[src/index.ts](src/index.ts) では次を export しています。
+
+- `electron`
+- `ElectronBuildOptions`
+- `ElectronDebugOptions`
+- `ElectronPluginOptions`
+- `ElectronPreloadEntry`
+- `ElectronPreloadEntryMap`
+- `ElectronPreloadOptions`
+- `ElectronRendererMode`
+- `ElectronRendererOptions`
+
+## Options
+
+### `renderer`
+
+renderer を desktop package 内へ同居させる場合と、別 app として外出しする場合の両方を扱うための設定です。
+
+既定では未指定のままでよく、この場合は plugin 自身が起動した Vite dev server URL を Electron child process へ注入します。
+
+```ts
+electron({
+  renderer: {
+    mode: 'external',
+    devUrl: 'http://localhost:4173',
+    devUrlEnvVar: 'ELECTRON_RENDERER_URL',
+  },
+})
+```
+
+意味:
+
+- `mode`: `internal` か `external` の renderer 配置方式
+- `devUrl`: 外部 renderer dev server を使う場合の URL
+- `devUrlEnvVar`: Electron main へ URL を渡す環境変数名
+
+この option は monorepo 専用ではありません。renderer を別 package や別 repo に分離したいケースでも同じ形で使えます。
+
+`mode` を省略した場合は、`devUrl` があれば `external`、なければ `internal` として扱います。
+
+### `main`
+
+Electron main の entry ファイルです。
+
+この値は Vite root 基準で絶対パスへ解決され、`electron_main` environment の `rolldownOptions.input` に使われます。
+
+既定値:
+
+```ts
+'electron/main.ts'
+```
+
+### `preload`
+
+preload entry は、単体、配列、名前付き map のいずれでも指定できます。
+
+plugin はこの設定を最終的に `name -> absolute source path` の map に正規化して扱います。preload が 1 件以上ある場合だけ `electron_preload` environment を登録します。
+
+文字列 1 件:
+
+```ts
+electron({
+  preload: 'electron/preload.ts',
+})
+```
+
+配列:
+
+```ts
+electron({
+  preload: [
+    'electron/preload.ts',
+    {
+      name: 'settings',
+      entry: 'electron/settings-preload.ts',
+    },
+  ],
+})
+```
+
+名前付き map:
+
+```ts
+electron({
+  preload: {
+    preload: 'electron/preload.ts',
+    settings: 'electron/settings-preload.ts',
+  },
+})
+```
+
+文字列指定では、source path の basename から entry 名を推論します。
+
+- `electron/preload.ts` -> `preload`
+- `electron/settings-preload.ts` -> `settings-preload`
+
+object / map 形式では、指定した `name` または key が出力名になります。
+
+内部では preload entry ごとに CommonJS 出力を行います。現行実装では main は ESM の `[name].js`、preload は CJS の `[name].cjs` です。
+
+制約:
+
+- 空文字の entry 名は不可
+- `main` は予約名のため不可
+- `/` や `\` を含む名前は不可
+- 同じ entry 名の重複は不可
+
+### `build`
+
+Electron 側 build のうち、plugin 利用者に開いている項目です。
+
+この設定は main と preload の両方へ適用されます。ただし、entry と出力名のように plugin の lifecycle 制御と密結合な項目は利用者へ開いていません。
+
+指定できる項目:
+
+- `outDir`
+- `emptyOutDir`
+- `copyPublicDir`
+- `emitAssets`
+- `minify`
+- `reportCompressedSize`
+- `sourcemap`
+- `target`
+- `external`
+- `chunkFileNames`
+
+一方で、次は plugin が固定します。
+
+- `rolldownOptions.input`
+- `output.entryFileNames`
+- `output.format`
+
+理由は、entry 解決と dev 再起動ロジックが plugin の責務だからです。
+
+出力名の扱い:
+
+- main entry は `[name].js`
+- preload entry は `[name].cjs`
+
+既定値の考え方:
+
+- `outDir`: `dist-electron`
+- `minify`: `false`
+- `sourcemap`: `true`
+- `target`: `node22`
+- `external`: 常に `electron` を追加
+- `copyPublicDir`: `false`
+- `emitAssets`: `false`
+- `reportCompressedSize`: `false`
+
+`emptyOutDir` は main build 側でだけ有効にし、preload build 側では false 固定にしています。これにより main / preload を同じ `outDir` に出しても、お互いの出力を消しにくい構成にしています。
+
+注意点として、package 自体の配布ビルド target は [tsdown.config.ts](tsdown.config.ts) で `node20`、Electron 側 build の既定 target は plugin option で `node22` です。前者は npm package 用、後者は Electron app 用で役割が異なります。
+
+### `debug`
+
+dev 中の debugger 接続を制御します。
+
+```ts
+electron({
+  debug: {
+    enabled: true,
+    host: 'localhost',
+    port: 9229,
+    rendererPort: 9222,
+    break: false,
+  },
+})
+```
+
+意味:
+
+- `enabled`: debug 用フラグの有効化
+- `host`: Node inspector の bind host
+- `port`: Electron main 用 Node inspector port
+- `rendererPort`: Electron renderer 用 Chromium remote debugging port
+- `break`: `--inspect-brk` を使うかどうか
+
+debug が有効な場合、plugin は Electron 起動時に次を付与します。
+
+- Node inspector 用の `--inspect` または `--inspect-brk`
+- renderer attach 用の `--remote-debugging-port`
+
+これにより VS Code から main / renderer を別々に attach できます。
+
+公開 API では `debug: true` も許可しており、この場合は既定値で debug を有効化します。未指定または `false` の場合は無効です。
+
+## Build / Dev Behavior
+
+`vite dev` 時:
+
+- renderer dev server を起動
+- plugin が renderer dev server URL を解決
+- preload の有無に応じて `electron_main` と `electron_preload` を watch build
+- build 完了イベントを内部 coordinator に渡す
+- 必要なタイミングでだけ Electron を再起動
+
+monorepo で renderer を別 app に分ける場合は、desktop 側の Vite root を保ったまま `renderer.devUrl` で外部 renderer の URL を指定できます。
+
+再起動は単純な都度実行ではなく、内部 scheduler によって coalesce されます。短時間に複数回 build 完了が発生しても、不要な再起動が増えにくい構成です。
+
+`vite build` 時:
+
+- client environment を build
+- `electron_main` environment を build
+- preload があれば `electron_preload` environment も build
+
+external renderer mode では、client environment 側には空の仮想 entry を差し込みます。これにより HTML を持たない desktop package でも Vite app build 自体を成立させ、最終 bundle 出力は削除します。
+
+## What The Plugin Owns
+
+この plugin が責務として持つもの:
+
+- package entrypoint からの公開 API
+- Electron main custom environment の登録
+- main / preload entry の正規化
+- Electron 側 build 設定の一部
+- dev 時の Electron 起動と再起動
+- debug 用フラグの付与
+
+責務の境界を明確にするため、plugin が持たないものも意識的に分けています。
+
+- 利用者アプリ固有の BrowserWindow 設定
+- production renderer の最終的な load 戦略
+- preload bridge 自体の API 設計
+- Electron アプリケーションロジック全体の終了戦略
+- electron-builder による packaging 設定
+
+## Internal Architecture
+
+内部実装は大きく 7 つに分けています。
+
+- [src/electron.ts](src/electron.ts): 公開入口。Vite plugin の登録と environment 設定を担当
+- [src/types.ts](src/types.ts): 共有型と定数。公開 option 型と内部 resolved 型の基盤を担当
+- [src/options.ts](src/options.ts): option 正規化、preload 検証、debug 解決、spawn 用 helper を担当
+- [src/environment.ts](src/environment.ts): custom environment 定義と environment build 設定を担当
+- [src/dev-state.ts](src/dev-state.ts): build 判定、watch event outcome、restart scheduler を担当
+- [src/dev.ts](src/dev.ts): dev orchestration。Vite watch build と restart 実行の接着を担当
+- [src/process.ts](src/process.ts): Electron process lifecycle。起動、停止、Windows の taskkill を担当
+
+この分離により、複雑な制御は helper テストで担保し、副作用を持つ処理は薄い module に閉じ込めています。
+
+より具体的には、内部の流れは次の順序です。
+
+1. [src/electron.ts](src/electron.ts) が option を解決し、custom environment と build 設定を登録する
+2. [src/dev.ts](src/dev.ts) が dev server の `listening` を待って watch session を開始する
+3. [src/options.ts](src/options.ts)、[src/environment.ts](src/environment.ts)、[src/dev-state.ts](src/dev-state.ts) が option 解決・environment 構成・restart 判定を担う
+4. [src/process.ts](src/process.ts) が実際の Electron process の起動と停止を行う
+
+この構造にしている理由は、判定ロジックを pure function と state machine に寄せて、副作用のある部分だけを小さく保つためです。
+
+## Repository Layout
+
+```text
+src/
+  index.ts
+  electron.ts
+  types.ts
+  options.ts
+  environment.ts
+  dev-state.ts
+  process.ts
+  dev.ts
+```
+
+## VS Code Debug
+
+このリポジトリには [../../.vscode/launch.json](../../.vscode/launch.json) を用意しています。
+
+主な構成:
+
+- `Launch Vite Dev`
+- `Attach Electron Main`
+- `Attach Electron Renderer`
+- `Launch Electron + Renderer Debug`
+
+example 側で debug option を有効にしておくと、`Launch Electron + Renderer Debug` で `pnpm dev` の起動と main / renderer への attach をまとめて実行できます。
+
+## Current Status
+
+現在のバージョンは `0.1.0` です。
+
+この段階では、次の状態を目標にしています。
+
+- 基本的な dev / build が通る
+- Electron installer の生成までサンプル側で通る
+- Environment API の使い方が分かる
+- plugin としての責務の境界が見えている
+- 利用者の `outDir` 設定や Windows 環境で dev が破綻しにくい
+- internal helper を単体テストしやすい
+
+現在の生成物は大きく 2 系統です。
+
+- package 用: `dist`
+- example Electron app 用: 各 app 側の `dist`、`dist-electron`、`release/${version}`
+
+## Remaining Issues
+
+優先度つきで、現時点の残課題を整理すると次のとおりです。
+
+### 1. preload あり構成の再起動同期が 2 周目以降に崩れる
+
+現状の build coordinator は、main と preload の両方が一度 `END` になったあと、その ready 状態を次の watch cycle 開始時に明示的に戻していません。そのため preload を持つ構成では、初回 build 成功後の 2 回目以降で main 側の `END` が先に届くと、preload の新しい build 完了を待たずに Electron を再起動してしまう可能性があります。
+
+この状態では、main だけが新しく、preload は 1 サイクル前の生成物を読んでいる一時的不整合が起こりえます。単純な保存操作では見えにくい一方、main と preload を同時に更新する変更では再現しやすく、dev 時の挙動としては優先度高く詰めるべき課題です。
+
+対処の方向としては、watch cycle の開始を表す event を契機に ready 状態をリセットするか、cycle 単位で main/preload の完了を追跡する state へ組み替える必要があります。あわせて、初回成功だけでなく 2 回目以降の連続 build を含むテストを追加する必要があります。
+
+### 2. dev 用 builder が起動中の Vite 設定を完全には引き継いでいない
+
+現状の dev orchestration では、Electron 側 watch build 用に `createBuilder()` を別途呼び出していますが、その際に起動中の Vite dev server が持っている resolved config をそのまま再利用していません。結果として、root、config file、他 plugin による設定変更、alias、define などが dev server 本体と watch builder 側でずれる余地があります。
+
+この plugin は Vite root 基準の path 解決と monorepo 対応を前提にしているため、dev server と別 builder の設定差分は設計意図と相性がよくありません。desktop app が monorepo 配下にある構成や、他 plugin が環境依存の設定を差し込む構成では、custom environment の見え方や path 解決結果がずれて破綻する可能性があります。
+
+対処の方向としては、起動済み server の resolved config から必要な設定を確実に引き継ぐか、そもそも Electron 側 watch build を dev server の environment 文脈へより強く寄せる必要があります。少なくとも root/config/plugin 解決が一致していることを保証する確認テストは必要です。
+
+### 3. production renderer の責務境界がまだ固まりきっていない
+
+example では external renderer の build 済み HTML を Electron main から読む構成まで確認できています。ただし plugin としては、production renderer の配置、解決、load の責務をどこまで持つかがまだ最終確定ではありません。
+
+今後、同居構成と外部構成の両方で破綻しにくい API にするには、この責務境界をもう少し明文化する必要があります。
+
+### 4. preload API の高度なユースケースは未整理
+
+単体指定、配列指定、名前付き map には対応していますが、より複雑な preload 設計や、bridge を複数層に分けるような運用までは整理できていません。
+
+この plugin の責務を広げすぎない範囲で、どこまで支援するかを見極める必要があります。
+
+### 5. 非 Windows では Electron 停止待ちが無期限化する余地がある
+
+Windows では `taskkill /t /f` を使って process tree ごと停止する方針を取っていますが、非 Windows 側は `SIGTERM` を送ったあとに単純に `exit` を待つだけの実装です。このため Electron app 側が終了を引き延ばしたり、子プロセスの都合で即座に落ちなかったりすると、再起動処理全体が待ち続ける可能性があります。
+
+この問題は通常の開発では表面化しにくいものの、終了処理を持つ main process や、ネイティブモジュールや外部プロセスと組み合わせるアプリでは現実的に起こりえます。再起動要求が queue されていても、停止待ちが返らなければ scheduler 全体が進まなくなります。
+
+対処の方向としては、一定時間で `SIGKILL` へ昇格する timeout 戦略、child process tree を含む停止方法の見直し、停止失敗時に次の restart をどう扱うかの方針整理が必要です。Windows 優先で検証している現状でも、クロスプラットフォーム plugin としては未解決事項として明記しておくべきです。
+
+### 6. Windows 固有の終了戦略はまだ改善余地がある
+
+現状でも Windows で Electron のプロセスツリーを停止できる前提までは整えていますが、派生プロセスや終了タイミングが複雑なケースまで十分に詰め切ったわけではありません。
+
+dev orchestration をより安定させるには、この領域の検証余地が残っています。
+
+### 7. dev 時の inspect から Electron environment の module graph が見えない
+
+現状の dev orchestration では、`electron_main` と `electron_preload` の watch build を Vite dev server 本体の通常 module graph ではなく、別途生成した builder で回しています。そのため `vite-plugin-inspect` の UI では environment 名は見えても、module graph や変換履歴が空に見えることがあります。
+
+理論上は、Electron 側の dev build を Vite dev server 側の environment 文脈へさらに寄せることで改善できる可能性があります。ただし watch build、再起動制御、custom environment の扱いをまとめて見直す必要があり、現時点では最低優先度です。
+
+### 8. external renderer 側の `base` 制御は plugin の直接スコープ外
+
+external renderer mode では、renderer app は desktop app とは別の Vite app として build されます。そのため renderer 側の `base` のような設定は、desktop 側へ入れたこの plugin だけで直接上書きできません。
+
+理論上は companion plugin や config helper を別途用意して、renderer app 側でも同じ package を使う形にすれば制御できます。ただしこれは現在の plugin 単体の責務からは外れており、現時点では最低優先度よりさらに低い検討事項です。

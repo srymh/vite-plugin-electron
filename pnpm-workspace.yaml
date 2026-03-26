@@ -1,0 +1,8 @@
+packages:
+  - example-single
+  - example-multiple/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - electron
+  - electron-winstaller

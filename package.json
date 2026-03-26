@@ -1,0 +1,31 @@
+{
+  "name": "vite-plugin-electron",
+  "version": "0.0.0",
+  "private": true,
+  "keywords": [
+    "electron",
+    "plugin",
+    "vite"
+  ],
+  "license": "MIT",
+  "author": "srymh",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @srymh/vite-plugin-electron build",
+    "test": "pnpm --filter @srymh/vite-plugin-electron test",
+    "dev:single": "pnpm --filter @srymh/single dev",
+    "build:single": "pnpm --filter @srymh/single build",
+    "preview:single": "pnpm --filter @srymh/single build && pnpm --filter @srymh/single preview",
+    "package:single": "pnpm --filter @srymh/single package",
+    "dev:multiple": "pnpm --parallel --filter @srymh/web --filter @srymh/desktop run dev",
+    "build:multiple": "pnpm --filter @srymh/web build && pnpm --filter @srymh/desktop build",
+    "preview:multiple": "pnpm build:multiple && pnpm --filter @srymh/desktop preview",
+    "package:multiple": "pnpm build:multiple && pnpm --filter @srymh/desktop package",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.42.0"
+  },
+  "packageManager": "pnpm@10.28.2"
+}

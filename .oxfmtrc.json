@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [],
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 80,
+  "sortImports": {
+    "newlinesBetween": true,
+    "order": "asc",
+    "internalPattern": ["@srymh"]
+  }
+}
