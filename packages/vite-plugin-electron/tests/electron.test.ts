@@ -1,3 +1,5 @@
+import { resolve } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -26,6 +28,15 @@ import {
   resolveRendererOptions,
 } from '../src/options'
 
+/** OS 間でパス区切りを揃える正規化ヘルパー */
+function p(s: string): string {
+  return s.replaceAll('\\', '/')
+}
+
+/** テスト用のクロスプラットフォームな絶対 cwd */
+const TEST_CWD = resolve('/test-repo')
+const TEST_CWD_DEEP = resolve('/test-repo/apps/desktop')
+
 describe('electron plugin', () => {
   it('preload 未設定なら main environment だけを登録する', () => {
     // Arrange
@@ -43,7 +54,7 @@ describe('electron plugin', () => {
   it('preload entry があれば preload environment も登録する', () => {
     // Arrange
     const config = createElectronEnvironmentDefinitions({
-      preload: 'D:/repo/electron/preload.ts',
+      preload: resolve(TEST_CWD, 'electron/preload.ts'),
     })
 
     // Assert
@@ -61,7 +72,7 @@ describe('electron plugin', () => {
 
   it('watch ignore pattern に custom outDir を反映する', () => {
     // Act
-    expect(createOutDirIgnorePatterns('build-electron', 'D:/repo')).toEqual([
+    expect(createOutDirIgnorePatterns('build-electron', TEST_CWD)).toEqual([
       '**/build-electron/**',
     ])
   })
@@ -79,7 +90,7 @@ describe('electron plugin', () => {
     // Arrange
     const config = createElectronEnvironmentBuildConfig(
       'electron_main',
-      resolveElectronPluginOptions({}, 'D:/repo'),
+      resolveElectronPluginOptions({}, TEST_CWD),
     )
 
     // Assert
@@ -87,7 +98,7 @@ describe('electron plugin', () => {
       string,
       string
     >
-    expect(mainInput?.main?.replaceAll('\\', '/')).toContain('electron/main.ts')
+    expect(p(mainInput?.main ?? '')).toContain('electron/main.ts')
     expect(config.build?.rolldownOptions?.output).toMatchObject({
       entryFileNames: '[name].js',
       format: 'es',
@@ -109,7 +120,7 @@ describe('electron plugin', () => {
             },
           ],
         },
-        'D:/repo',
+        TEST_CWD,
       ),
     )
 
@@ -122,10 +133,8 @@ describe('electron plugin', () => {
       preload: expect.any(String),
       settings: expect.any(String),
     })
-    expect(String(preloadInput?.preload).replaceAll('\\', '/')).toContain(
-      'electron/preload.ts',
-    )
-    expect(String(preloadInput?.settings).replaceAll('\\', '/')).toContain(
+    expect(p(String(preloadInput?.preload))).toContain('electron/preload.ts')
+    expect(p(String(preloadInput?.settings))).toContain(
       'electron/settings-preload.ts',
     )
     expect(config.build?.rolldownOptions?.output).toMatchObject({
@@ -146,7 +155,7 @@ describe('electron plugin', () => {
             emptyOutDir: true,
           },
         },
-        'D:/repo',
+        TEST_CWD,
       ),
     )
 
@@ -474,17 +483,17 @@ describe('electron plugin', () => {
           outDir: 'build-electron',
         },
       },
-      'D:/repo/apps/desktop',
+      TEST_CWD_DEEP,
     )
 
     // Assert
-    expect(resolved.mainEntry.replaceAll('\\', '/')).toBe(
-      'D:/repo/apps/desktop/electron/custom-main.ts',
+    expect(resolved.mainEntry).toBe(
+      resolve(TEST_CWD_DEEP, 'electron/custom-main.ts'),
     )
-    expect(resolved.mainOutputPath.replaceAll('\\', '/')).toBe(
-      'D:/repo/apps/desktop/build-electron/main.js',
+    expect(resolved.mainOutputPath).toBe(
+      resolve(TEST_CWD_DEEP, 'build-electron/main.js'),
     )
-    expect(resolved.rootDir.replaceAll('\\', '/')).toBe('D:/repo/apps/desktop')
+    expect(resolved.rootDir).toBe(TEST_CWD_DEEP)
     expect(resolved.outDir).toBe('build-electron')
   })
 
@@ -497,7 +506,7 @@ describe('electron plugin', () => {
             main: 'electron/preload.ts',
           },
         },
-        'D:/repo',
+        TEST_CWD,
       ),
     ).toThrow(/reserved/)
 
@@ -506,7 +515,7 @@ describe('electron plugin', () => {
         {
           preload: ['electron/preload.ts', 'src/preload.ts'],
         },
-        'D:/repo',
+        TEST_CWD,
       ),
     ).toThrow(/Duplicate preload entry name/)
   })
