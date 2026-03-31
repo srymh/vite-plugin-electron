@@ -23,11 +23,12 @@ import {
 } from './types'
 
 export type {
-  ElectronBuildOptions,
   ElectronDebugOptions,
+  ElectronMainOptions,
   ElectronPluginOptions,
   ElectronPreloadEntry,
   ElectronPreloadEntryMap,
+  ElectronPreloadInput,
   ElectronPreloadOptions,
   ElectronRendererMode,
   ElectronRendererOptions,
@@ -48,7 +49,7 @@ export type {
  * @param options plugin 利用者が指定する Electron 向け設定
  * @returns Vite plugin 定義
  */
-export function electron(options: ElectronPluginOptions = {}): Plugin {
+export function electron(options: ElectronPluginOptions): Plugin {
   const defaultRootDir = process.cwd()
   let resolvedOptions = resolveElectronPluginOptions(options, defaultRootDir)
 
@@ -93,7 +94,7 @@ export function electron(options: ElectronPluginOptions = {}): Plugin {
         server: {
           watch: {
             ignored: createOutDirIgnorePatterns(
-              currentOptions.outDir,
+              currentOptions,
               currentOptions.rootDir,
             ),
           },

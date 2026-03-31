@@ -1,9 +1,8 @@
-import type { UserConfig } from 'vite'
+import { mergeConfig, type UserConfig } from 'vite'
 
 import {
   ELECTRON_MAIN_ENVIRONMENT_NAME,
   ELECTRON_PRELOAD_ENVIRONMENT_NAME,
-  MAIN_ENTRY_NAME,
   type ElectronEnvironmentName,
   type ElectronPreloadEntryMap,
   type ResolvedElectronPluginOptions,
@@ -52,8 +51,8 @@ export function createElectronEnvironmentDefinitions(
 /**
  * 指定された Electron environment 用の build 設定を組み立てる。
  *
- * main と preload では entry source と出力フォーマットが異なるため、environment 名に応じて
- * `rolldownOptions.input` と `output` を切り替える。
+ * まず plugin のベースデフォルトを構築し、ユーザーの vite override を Vite の
+ * `mergeConfig` で deep merge したあと、plugin が管理すべき不変の制約を再適用する。
  *
  * @param name build 設定を生成する environment 名
  * @param resolvedOptions 解決済み plugin オプション
@@ -63,40 +62,60 @@ export function createElectronEnvironmentBuildConfig(
   name: ElectronEnvironmentName,
   resolvedOptions: ResolvedElectronPluginOptions,
 ): UserConfig {
-  const { buildOptions, outDir, mainEntry, preloadEntries } = resolvedOptions
-  const shouldEmptyOutDir =
-    name === ELECTRON_MAIN_ENVIRONMENT_NAME
-      ? (buildOptions.emptyOutDir ?? true)
-      : false
+  const isMain = name === ELECTRON_MAIN_ENVIRONMENT_NAME
 
-  return {
+  const baseConfig: UserConfig = {
     build: {
-      outDir: outDir,
-      emptyOutDir: shouldEmptyOutDir,
-      copyPublicDir: buildOptions.copyPublicDir ?? false,
-      emitAssets: buildOptions.emitAssets ?? false,
-      minify: buildOptions.minify ?? false,
-      reportCompressedSize: buildOptions.reportCompressedSize ?? false,
-      sourcemap: buildOptions.sourcemap ?? true,
-      target: buildOptions.target ?? 'node22',
+      outDir: isMain
+        ? resolvedOptions.mainOutDir
+        : resolvedOptions.preloadOutDir,
+      emptyOutDir: isMain,
+      copyPublicDir: false,
+      emitAssets: false,
+      minify: false,
+      reportCompressedSize: false,
+      sourcemap: true,
+      target: 'node22',
       rolldownOptions: {
-        input:
-          name === ELECTRON_MAIN_ENVIRONMENT_NAME
-            ? { [MAIN_ENTRY_NAME]: mainEntry }
-            : preloadEntries,
-        external: [...new Set(['electron', ...(buildOptions.external ?? [])])],
+        external: ['electron'],
         output: {
-          entryFileNames:
-            name === ELECTRON_MAIN_ENVIRONMENT_NAME
-              ? '[name].js'
-              : '[name].cjs',
-          format: name === ELECTRON_MAIN_ENVIRONMENT_NAME ? 'es' : 'cjs',
-          chunkFileNames:
-            buildOptions.chunkFileNames ?? 'chunks/[name]-[hash].js',
+          entryFileNames: isMain ? '[name].js' : '[name].cjs',
+          format: isMain ? 'es' : 'cjs',
+          chunkFileNames: 'chunks/[name]-[hash].js',
         },
       },
     },
   }
+
+  const userOverrides = isMain
+    ? resolvedOptions.mainViteOverrides
+    : resolvedOptions.preloadViteOverrides
+
+  const merged = mergeConfig(baseConfig, userOverrides)
+
+  // --- 不変の制約を再適用 ---
+
+  // rolldownOptions.input は常に plugin が管理する。ユーザーの上書きは無視する。
+  merged.build.rolldownOptions.input = isMain
+    ? { [resolvedOptions.mainEntryName]: resolvedOptions.mainEntry }
+    : resolvedOptions.preloadEntries
+
+  // electron は常に外部化する。mergeConfig が配列を concat するため、
+  // ユーザーが external を指定した場合でも electron が含まれることは保証されるが、
+  // 念のため重複排除を行う。
+  const currentExternal = merged.build.rolldownOptions.external
+  if (Array.isArray(currentExternal)) {
+    merged.build.rolldownOptions.external = [
+      ...new Set(currentExternal as string[]),
+    ]
+  }
+
+  // preload は main が先にクリーンするため、常に emptyOutDir を無効にする。
+  if (!isMain) {
+    merged.build.emptyOutDir = false
+  }
+
+  return merged
 }
 
 /**
