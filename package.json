@@ -1,6 +1,5 @@
 {
   "name": "vite-plugin-electron",
-  "version": "0.0.0",
   "private": true,
   "keywords": [
     "electron",
@@ -13,14 +12,14 @@
   "scripts": {
     "build": "pnpm --filter @srymh/vite-plugin-electron build",
     "test": "pnpm --filter @srymh/vite-plugin-electron test",
-    "dev:single": "pnpm --filter @srymh/single dev",
-    "build:single": "pnpm --filter @srymh/single build",
-    "preview:single": "pnpm --filter @srymh/single build && pnpm --filter @srymh/single preview",
-    "package:single": "pnpm --filter @srymh/single package",
-    "dev:multiple": "pnpm --parallel --filter @srymh/web --filter @srymh/desktop run dev",
-    "build:multiple": "pnpm --filter @srymh/web build && pnpm --filter @srymh/desktop build",
-    "preview:multiple": "pnpm build:multiple && pnpm --filter @srymh/desktop preview",
-    "package:multiple": "pnpm build:multiple && pnpm --filter @srymh/desktop package",
+    "dev:single": "pnpm --filter @repo/single dev",
+    "build:single": "pnpm --filter @repo/single build",
+    "preview:single": "pnpm --filter @repo/single build && pnpm --filter @repo/single preview",
+    "package:single": "pnpm --filter @repo/single package",
+    "dev:multiple": "pnpm --parallel --filter @repo/multi-web --filter @repo/multi-desktop run dev",
+    "build:multiple": "pnpm --filter @repo/multi-web build && pnpm --filter @repo/multi-desktop build",
+    "preview:multiple": "pnpm build:multiple && pnpm --filter @repo/multi-desktop preview",
+    "package:multiple": "pnpm build:multiple && pnpm --filter @repo/multi-desktop package",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check"
   },

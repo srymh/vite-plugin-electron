@@ -1,4 +1,4 @@
-# @srymh/single
+# @repo/single
 
 renderer と Electron main/preload を 1 package に同居させた、最小構成のサンプルです。
 

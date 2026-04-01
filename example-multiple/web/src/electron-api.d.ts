@@ -1,4 +1,4 @@
-import type { ElectronApi } from '@srymh/electron-api'
+import type { ElectronApi } from '@repo/multi-electron-api'
 
 declare global {
   interface Window {

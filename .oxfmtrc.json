@@ -7,6 +7,6 @@
   "sortImports": {
     "newlinesBetween": true,
     "order": "asc",
-    "internalPattern": ["@srymh"]
+    "internalPattern": ["@repo"]
   }
 }

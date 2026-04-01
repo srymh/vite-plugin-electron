@@ -1,9 +1,8 @@
-import { defineConfig } from 'vite'
-
 import {
   electron,
   type ElectronPluginOptions,
 } from '@srymh/vite-plugin-electron'
+import { defineConfig } from 'vite'
 
 const electronOptions: ElectronPluginOptions = {
   main: {
