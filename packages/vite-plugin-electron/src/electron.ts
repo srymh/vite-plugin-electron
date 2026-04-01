@@ -7,9 +7,9 @@ import { registerElectronDevServer } from './dev'
 import {
   EXTERNAL_RENDERER_CLIENT_ENTRY_ID,
   RESOLVED_EXTERNAL_RENDERER_CLIENT_ENTRY_ID,
-  createExternalRendererClientBuildConfig,
   createElectronEnvironmentBuildConfig,
   createElectronEnvironmentDefinitions,
+  createExternalRendererClientBuildConfig,
   removeExternalRendererClientBuildOutputs,
 } from './environment'
 import {

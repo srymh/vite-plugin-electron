@@ -65,10 +65,10 @@ export function resolveElectronPluginOptions(
 /**
  * ユーザーの vite override から実効 outDir を決定する。
  *
- * vite.build.outDir が指定されていればそれを、なければトップレベルの outDir を返す。
+ * vite.build.outDir が指定されていればそれを、なければデフォルトの outDir を返す。
  *
  * @param viteOverrides ユーザーが指定した vite 設定
- * @param defaultOutDir トップレベルの outDir
+ * @param defaultOutDir デフォルトの outDir
  * @returns 実効 outDir
  */
 function resolveEffectiveOutDir(
