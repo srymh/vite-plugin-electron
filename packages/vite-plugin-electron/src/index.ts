@@ -1,11 +1,12 @@
 export { electron } from './electron'
 
 export type {
-  ElectronBuildOptions,
   ElectronDebugOptions,
+  ElectronMainOptions,
   ElectronPluginOptions,
   ElectronPreloadEntry,
   ElectronPreloadEntryMap,
+  ElectronPreloadInput,
   ElectronPreloadOptions,
   ElectronRendererMode,
   ElectronRendererOptions,

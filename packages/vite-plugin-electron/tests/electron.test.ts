@@ -71,10 +71,46 @@ describe('electron plugin', () => {
   })
 
   it('watch ignore pattern に custom outDir を反映する', () => {
+    // Arrange
+    const resolved = resolveElectronPluginOptions(
+      {
+        main: {
+          entry: 'electron/main.ts',
+          vite: { build: { outDir: 'build-electron' } },
+        },
+      },
+      TEST_CWD,
+    )
+
     // Act
-    expect(createOutDirIgnorePatterns('build-electron', TEST_CWD)).toEqual([
+    expect(createOutDirIgnorePatterns(resolved, TEST_CWD)).toContain(
       '**/build-electron/**',
-    ])
+    )
+  })
+
+  it('main と preload で異なる outDir を指定すると両方の ignore pattern を返す', () => {
+    // Arrange
+    const resolved = resolveElectronPluginOptions(
+      {
+        main: {
+          entry: 'electron/main.ts',
+          vite: { build: { outDir: 'dist-electron/main' } },
+        },
+        preload: {
+          entry: 'electron/preload.ts',
+          vite: { build: { outDir: 'dist-electron/preload' } },
+        },
+      },
+      TEST_CWD,
+    )
+
+    // Act
+    const patterns = createOutDirIgnorePatterns(resolved, TEST_CWD)
+
+    // Assert
+    expect(patterns).toContain('**/dist-electron/**')
+    expect(patterns).toContain('**/dist-electron/main/**')
+    expect(patterns).toContain('**/dist-electron/preload/**')
   })
 
   it('preload の有無に応じて watch 対象 environment を切り替える', () => {
@@ -86,11 +122,35 @@ describe('electron plugin', () => {
     ])
   })
 
-  it('main environment を固定の main.js な ES module 出力として組み立てる', () => {
+  it('main entry 名を入力ファイルの basename から推論する', () => {
+    // Arrange / Act / Assert
+    const fromFile = resolveElectronPluginOptions(
+      { main: { entry: 'electron/main.ts' } },
+      TEST_CWD,
+    )
+    expect(fromFile.mainEntryName).toBe('main')
+    expect(fromFile.mainOutputPath).toBe(
+      resolve(TEST_CWD, 'dist-electron/main.js'),
+    )
+
+    const fromIndex = resolveElectronPluginOptions(
+      { main: { entry: 'electron/main/index.ts' } },
+      TEST_CWD,
+    )
+    expect(fromIndex.mainEntryName).toBe('index')
+    expect(fromIndex.mainOutputPath).toBe(
+      resolve(TEST_CWD, 'dist-electron/index.js'),
+    )
+  })
+
+  it('main environment を入力ファイル名に基づいた ES module 出力として組み立てる', () => {
     // Arrange
     const config = createElectronEnvironmentBuildConfig(
       'electron_main',
-      resolveElectronPluginOptions({}, TEST_CWD),
+      resolveElectronPluginOptions(
+        { main: { entry: 'electron/main.ts' } },
+        TEST_CWD,
+      ),
     )
 
     // Assert
@@ -112,13 +172,16 @@ describe('electron plugin', () => {
       'electron_preload',
       resolveElectronPluginOptions(
         {
-          preload: [
-            'electron/preload.ts',
-            {
-              name: 'settings',
-              entry: 'electron/settings-preload.ts',
-            },
-          ],
+          main: { entry: 'electron/main.ts' },
+          preload: {
+            entry: [
+              'electron/preload.ts',
+              {
+                name: 'settings',
+                entry: 'electron/settings-preload.ts',
+              },
+            ],
+          },
         },
         TEST_CWD,
       ),
@@ -150,9 +213,10 @@ describe('electron plugin', () => {
       'electron_preload',
       resolveElectronPluginOptions(
         {
-          preload: 'electron/preload.ts',
-          build: {
-            emptyOutDir: true,
+          main: { entry: 'electron/main.ts' },
+          preload: {
+            entry: 'electron/preload.ts',
+            vite: { build: { emptyOutDir: true } },
           },
         },
         TEST_CWD,
@@ -161,6 +225,210 @@ describe('electron plugin', () => {
 
     // Assert
     expect(config.build?.emptyOutDir).toBe(false)
+  })
+
+  it('main.vite で出力ファイル名を上書きできる', () => {
+    // Arrange
+    const resolved = resolveElectronPluginOptions(
+      {
+        main: {
+          entry: 'electron/main/index.ts',
+          vite: {
+            build: {
+              rolldownOptions: {
+                output: { entryFileNames: 'main/[name].js' },
+              },
+            },
+          },
+        },
+      },
+      TEST_CWD,
+    )
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolved,
+    )
+
+    // Assert
+    expect(resolved.mainEntryName).toBe('index')
+    const mainInput = config.build?.rolldownOptions?.input as Record<
+      string,
+      string
+    >
+    expect(mainInput).toHaveProperty('index')
+    expect(config.build?.rolldownOptions?.output).toMatchObject({
+      entryFileNames: 'main/[name].js',
+      format: 'es',
+    })
+  })
+
+  it('preload.vite で出力ファイル名とフォーマットを上書きできる', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_preload',
+      resolveElectronPluginOptions(
+        {
+          main: { entry: 'electron/main.ts' },
+          preload: {
+            entry: 'electron/preload.ts',
+            vite: {
+              build: {
+                rolldownOptions: {
+                  output: {
+                    entryFileNames: 'preload/[name].cjs',
+                    format: 'cjs',
+                  },
+                },
+              },
+            },
+          },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    expect(config.build?.rolldownOptions?.output).toMatchObject({
+      entryFileNames: 'preload/[name].cjs',
+      format: 'cjs',
+    })
+  })
+
+  it('main.vite で outDir を個別指定できる', () => {
+    // Arrange
+    const resolved = resolveElectronPluginOptions(
+      {
+        main: {
+          entry: 'electron/main/index.ts',
+          vite: { build: { outDir: 'dist-electron/main' } },
+        },
+        preload: {
+          entry: 'electron/preload/index.ts',
+          vite: { build: { outDir: 'dist-electron/preload' } },
+        },
+      },
+      TEST_CWD,
+    )
+
+    // Assert
+    expect(resolved.mainOutDir).toBe('dist-electron/main')
+    expect(resolved.preloadOutDir).toBe('dist-electron/preload')
+
+    const mainConfig = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolved,
+    )
+    expect(mainConfig.build?.outDir).toBe('dist-electron/main')
+
+    const preloadConfig = createElectronEnvironmentBuildConfig(
+      'electron_preload',
+      resolved,
+    )
+    expect(preloadConfig.build?.outDir).toBe('dist-electron/preload')
+  })
+
+  it('vite override の external はユーザー指定と electron を結合する', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: {
+            entry: 'electron/main.ts',
+            vite: {
+              build: {
+                rolldownOptions: {
+                  external: ['better-sqlite3'],
+                },
+              },
+            },
+          },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    const external = config.build?.rolldownOptions?.external as string[]
+    expect(external).toContain('electron')
+    expect(external).toContain('better-sqlite3')
+  })
+
+  it('vite override で input を指定しても plugin が上書きする', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: {
+            entry: 'electron/main.ts',
+            vite: {
+              build: {
+                rolldownOptions: {
+                  input: { wrong: 'should-be-ignored.ts' },
+                },
+              },
+            },
+          },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    const input = config.build?.rolldownOptions?.input as Record<string, string>
+    expect(p(input?.main ?? '')).toContain('electron/main.ts')
+    expect(input).not.toHaveProperty('wrong')
+  })
+
+  it('vite override で sourcemap と target を上書きできる', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: {
+            entry: 'electron/main.ts',
+            vite: {
+              build: {
+                sourcemap: false,
+                target: 'node20',
+              },
+            },
+          },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    expect(config.build?.sourcemap).toBe(false)
+    expect(config.build?.target).toBe('node20')
+  })
+
+  it('mainOutputPath が vite override の outDir と entryFileNames を反映する', () => {
+    // Arrange
+    const resolved = resolveElectronPluginOptions(
+      {
+        main: {
+          entry: 'electron/main/index.ts',
+          vite: {
+            build: {
+              outDir: 'dist-electron/main',
+              rolldownOptions: {
+                output: { entryFileNames: 'app/[name].js' },
+              },
+            },
+          },
+        },
+      },
+      TEST_CWD,
+    )
+
+    // Assert
+    expect(resolved.mainOutputPath).toBe(
+      resolve(TEST_CWD, 'dist-electron/main/app/index.js'),
+    )
   })
 
   it('debug 設定から既定値と引数を解決する', () => {
@@ -478,9 +746,9 @@ describe('electron plugin', () => {
     // Arrange
     const resolved = resolveElectronPluginOptions(
       {
-        main: 'electron/custom-main.ts',
-        build: {
-          outDir: 'build-electron',
+        main: {
+          entry: 'electron/custom-main.ts',
+          vite: { build: { outDir: 'build-electron' } },
         },
       },
       TEST_CWD_DEEP,
@@ -490,11 +758,13 @@ describe('electron plugin', () => {
     expect(resolved.mainEntry).toBe(
       resolve(TEST_CWD_DEEP, 'electron/custom-main.ts'),
     )
+    expect(resolved.mainEntryName).toBe('custom-main')
     expect(resolved.mainOutputPath).toBe(
-      resolve(TEST_CWD_DEEP, 'build-electron/main.js'),
+      resolve(TEST_CWD_DEEP, 'build-electron/custom-main.js'),
     )
     expect(resolved.rootDir).toBe(TEST_CWD_DEEP)
-    expect(resolved.outDir).toBe('build-electron')
+    expect(resolved.outDir).toBe('dist-electron')
+    expect(resolved.mainOutDir).toBe('build-electron')
   })
 
   it('preload の不正設定を option 解決時に検出する', () => {
@@ -502,18 +772,10 @@ describe('electron plugin', () => {
     expect(() =>
       resolveElectronPluginOptions(
         {
+          main: { entry: 'electron/main.ts' },
           preload: {
-            main: 'electron/preload.ts',
+            entry: ['electron/preload.ts', 'src/preload.ts'],
           },
-        },
-        TEST_CWD,
-      ),
-    ).toThrow(/reserved/)
-
-    expect(() =>
-      resolveElectronPluginOptions(
-        {
-          preload: ['electron/preload.ts', 'src/preload.ts'],
         },
         TEST_CWD,
       ),

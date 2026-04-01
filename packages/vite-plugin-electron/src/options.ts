@@ -3,12 +3,10 @@ import process from 'node:process'
 
 import {
   DEFAULT_RENDERER_DEV_SERVER_URL_ENV_VAR,
-  DEFAULT_MAIN_ENTRY,
   ELECTRON_OUT_DIR,
-  MAIN_ENTRY_NAME,
   type ElectronPluginOptions,
   type ElectronPreloadEntryMap,
-  type ElectronPreloadOptions,
+  type ElectronPreloadInput,
   type ResolvedElectronDebugOptions,
   type ResolvedElectronPluginOptions,
   type ResolvedElectronRendererOptions,
@@ -25,27 +23,81 @@ import {
  * @returns 内部利用向けに解決済みのオプション
  */
 export function resolveElectronPluginOptions(
-  options: ElectronPluginOptions = {},
+  options: ElectronPluginOptions,
   cwd: string = process.cwd(),
 ): ResolvedElectronPluginOptions {
-  const buildOptions = options.build ?? {}
-  const preloadEntries = Object.fromEntries(
-    Object.entries(normalizePreloadEntries(options.preload)).map(
-      ([name, source]) => [name, resolve(cwd, source)],
-    ),
+  const preloadEntries = options.preload
+    ? Object.fromEntries(
+        Object.entries(normalizePreloadEntries(options.preload.entry)).map(
+          ([name, source]) => [name, resolve(cwd, source)],
+        ),
+      )
+    : {}
+
+  const outDir = ELECTRON_OUT_DIR
+  const mainOutDir = resolveEffectiveOutDir(options.main.vite, outDir)
+  const preloadOutDir = resolveEffectiveOutDir(options.preload?.vite, outDir)
+  const mainEntryName = inferEntryName(options.main.entry)
+  const mainEntryFileNames = resolveEffectiveMainEntryFileNames(
+    options.main.vite,
   )
-  const outDir = buildOptions.outDir ?? ELECTRON_OUT_DIR
 
   return {
     rootDir: cwd,
-    mainEntry: resolve(cwd, options.main ?? DEFAULT_MAIN_ENTRY),
+    mainEntry: resolve(cwd, options.main.entry),
+    mainEntryName,
+    mainViteOverrides: options.main.vite ?? {},
     preloadEntries,
-    buildOptions,
+    preloadViteOverrides: options.preload?.vite ?? {},
     debugOptions: resolveDebugOptions(options.debug),
     rendererOptions: resolveRendererOptions(options.renderer),
     outDir,
-    mainOutputPath: resolve(cwd, outDir, `${MAIN_ENTRY_NAME}.js`),
+    mainOutDir,
+    preloadOutDir,
+    mainOutputPath: resolve(
+      cwd,
+      mainOutDir,
+      mainEntryFileNames.replace('[name]', mainEntryName),
+    ),
   }
+}
+
+/**
+ * ユーザーの vite override から実効 outDir を決定する。
+ *
+ * vite.build.outDir が指定されていればそれを、なければデフォルトの outDir を返す。
+ *
+ * @param viteOverrides ユーザーが指定した vite 設定
+ * @param defaultOutDir デフォルトの outDir
+ * @returns 実効 outDir
+ */
+function resolveEffectiveOutDir(
+  viteOverrides: ElectronPluginOptions['main']['vite'],
+  defaultOutDir: string,
+): string {
+  return viteOverrides?.build?.outDir ?? defaultOutDir
+}
+
+/**
+ * ユーザーの vite override から main 用 entryFileNames を決定する。
+ *
+ * rolldownOptions.output.entryFileNames が指定されていればそれを、
+ * なければ既定の '[name].js' を返す。
+ *
+ * @param viteOverrides ユーザーが指定した vite 設定
+ * @returns 実効 entryFileNames
+ */
+function resolveEffectiveMainEntryFileNames(
+  viteOverrides: ElectronPluginOptions['main']['vite'],
+): string {
+  const output = viteOverrides?.build?.rolldownOptions?.output
+  if (output && typeof output === 'object' && !Array.isArray(output)) {
+    const entryFileNames = output.entryFileNames
+    if (typeof entryFileNames === 'string') {
+      return entryFileNames
+    }
+  }
+  return '[name].js'
 }
 
 /**
@@ -77,33 +129,28 @@ export function resolveRendererOptions(
  * 文字列、配列、名前付き map のいずれも受け入れ、最終的には重複と予約語を検証済みの
  * map へ変換する。
  *
- * @param preload 利用者が与えた preload 設定
+ * @param preload 利用者が与えた preload entry 入力
  * @returns 正規化済み preload entry map
  */
 export function normalizePreloadEntries(
-  preload: ElectronPreloadOptions | undefined,
+  preload: ElectronPreloadInput | undefined,
 ): ElectronPreloadEntryMap {
   if (!preload) {
     return {}
   }
 
   if (typeof preload === 'string') {
-    return createValidatedPreloadEntryMap([
-      [inferPreloadEntryName(preload), preload],
-    ])
+    return createValidatedPreloadEntryMap([[inferEntryName(preload), preload]])
   }
 
   if (Array.isArray(preload)) {
     return createValidatedPreloadEntryMap(
       preload.map((entry) => {
         if (typeof entry === 'string') {
-          return [inferPreloadEntryName(entry), entry] as const
+          return [inferEntryName(entry), entry] as const
         }
 
-        return [
-          entry.name ?? inferPreloadEntryName(entry.entry),
-          entry.entry,
-        ] as const
+        return [entry.name ?? inferEntryName(entry.entry), entry.entry] as const
       }),
     )
   }
@@ -141,17 +188,11 @@ export function createValidatedPreloadEntryMap(
  *
  * @param name preload entry 名
  * @param source source path
- * @throws 予約語、空文字、パス区切りを含む名前などが見つかった場合
+ * @throws 空文字、パス区切りを含む名前などが見つかった場合
  */
 export function validatePreloadEntry(name: string, source: string): void {
   if (!name) {
     throw new Error('Preload entry names must not be empty')
-  }
-
-  if (name === MAIN_ENTRY_NAME) {
-    throw new Error(
-      `The preload entry name "${MAIN_ENTRY_NAME}" is reserved for the Electron main entry`,
-    )
   }
 
   if (name.includes('/') || name.includes('\\')) {
@@ -166,13 +207,15 @@ export function validatePreloadEntry(name: string, source: string): void {
 }
 
 /**
- * source path の basename から preload entry 名を推論する。
+ * source path の basename から entry 名を推論する。
  *
- * @param entryPath preload source path
+ * main / preload 両方で共通に使用する。
+ *
+ * @param entryPath source path
  * @returns 拡張子を除いた entry 名
  * @throws 名前を推論できない場合
  */
-export function inferPreloadEntryName(entryPath: string): string {
+export function inferEntryName(entryPath: string): string {
   const fileName = basename(entryPath)
   const extension = extname(fileName)
   const inferredName = extension
@@ -180,7 +223,7 @@ export function inferPreloadEntryName(entryPath: string): string {
     : fileName
 
   if (!inferredName) {
-    throw new Error(`Could not infer a preload entry name from "${entryPath}"`)
+    throw new Error(`Could not infer an entry name from "${entryPath}"`)
   }
 
   return inferredName
@@ -318,14 +361,36 @@ export function isSuccessfulWindowsTaskkillExitCode(
 /**
  * Vite dev server が無視すべき Electron 出力ディレクトリの glob を返す。
  *
- * @param outDir Electron 出力ディレクトリ
+ * main / preload が個別の outDir を持つ場合はすべてを ignore 対象に含める。
+ *
+ * @param resolvedOptions 解決済みの plugin オプション
  * @param cwd 相対化の基準ディレクトリ
  * @returns watch ignore へ渡す glob 配列
  */
 export function createOutDirIgnorePatterns(
-  outDir: string,
+  resolvedOptions: Pick<
+    ResolvedElectronPluginOptions,
+    'outDir' | 'mainOutDir' | 'preloadOutDir'
+  >,
   cwd: string = process.cwd(),
 ): string[] {
+  const dirs = new Set([
+    resolvedOptions.outDir,
+    resolvedOptions.mainOutDir,
+    resolvedOptions.preloadOutDir,
+  ])
+
+  return [...dirs].flatMap((dir) => createIgnorePatternsForDir(dir, cwd))
+}
+
+/**
+ * 単一のディレクトリに対する watch ignore glob を返す。
+ *
+ * @param outDir 無視対象のディレクトリ
+ * @param cwd 相対化の基準ディレクトリ
+ * @returns glob 配列
+ */
+function createIgnorePatternsForDir(outDir: string, cwd: string): string[] {
   const normalizedOutDir = normalizeGlobPath(
     relative(cwd, resolve(cwd, outDir)),
   )

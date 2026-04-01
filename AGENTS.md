@@ -6,8 +6,8 @@ Guide for AI coding agents working in this repository.
 
 A pnpm workspace monorepo containing a Vite 8 plugin (`@srymh/vite-plugin-electron`) that
 integrates Electron main/preload process builds using Vite's Environment API. The plugin
-source lives in `packages/vite-plugin-electron/`. Two example apps (`example-single/`,
-`example-multiple/`) demonstrate usage. Documentation, comments, and JSDoc are in Japanese.
+source lives in `packages/vite-plugin-electron/`. Example apps (`example-single/`, `example-multiple/`) demonstrate usage. Documentation, comments, and
+JSDoc are written in **Japanese**.
 
 ## Build / Lint / Test Commands
 

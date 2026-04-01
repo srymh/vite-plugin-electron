@@ -10,17 +10,22 @@ export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     electron({
-      main: 'electron/main.ts',
-      preload: 'electron/preload.ts',
+      main: {
+        entry: 'electron/main.ts',
+        vite: {
+          build: { sourcemap: true, minify: false },
+        },
+      },
+      preload: {
+        entry: 'electron/preload.ts',
+        vite: {
+          build: { sourcemap: true, minify: false },
+        },
+      },
       debug: {
         enabled: true,
         port: 9229,
         rendererPort: 9222,
-      },
-      build: {
-        outDir: 'dist-electron',
-        sourcemap: true,
-        minify: false,
       },
     }),
     Inspect(),
