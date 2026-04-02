@@ -7,7 +7,8 @@ export default defineConfig({
   outDir: 'dist',
   platform: 'node',
   target: 'node20',
-  sourcemap: true,
+  sourcemap: false,
+  minify: true,
   clean: true,
   deps: {
     skipNodeModulesBundle: true,

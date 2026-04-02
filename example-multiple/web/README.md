@@ -1,4 +1,4 @@
-# @srymh/web
+# @repo/multi-web
 
 example-multiple の renderer アプリです。React + Vite で構成されており、example-multiple/desktop から external renderer として利用されます。
 

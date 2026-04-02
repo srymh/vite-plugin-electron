@@ -1,5 +1,5 @@
 {
-  "name": "@srymh/desktop",
+  "name": "@repo/multi-desktop",
   "version": "0.0.0",
   "private": true,
   "description": "",
@@ -16,7 +16,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "@srymh/electron-api": "workspace:*"
+    "@repo/multi-electron-api": "workspace:*"
   },
   "devDependencies": {
     "@srymh/vite-plugin-electron": "workspace:*",

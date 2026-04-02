@@ -1,8 +1,7 @@
+import { electron } from '@srymh/vite-plugin-electron'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import Inspect from 'vite-plugin-inspect'
-
-import { electron } from '@srymh/vite-plugin-electron'
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({

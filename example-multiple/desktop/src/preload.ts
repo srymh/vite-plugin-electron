@@ -1,6 +1,6 @@
 import { contextBridge } from 'electron'
 
-import type { ElectronApi } from '@srymh/electron-api'
+import type { ElectronApi } from '@repo/multi-electron-api'
 
 const electronApi: ElectronApi = {
   platform: process.platform,

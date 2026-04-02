@@ -1,14 +1,23 @@
 {
   "name": "@srymh/vite-plugin-electron",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0-beta.1",
+  "description": "Vite 8 Environment API based plugin for integrating Electron main/preload build",
   "keywords": [
     "electron",
-    "plugin",
-    "vite"
+    "vite",
+    "vite-plugin"
   ],
+  "homepage": "https://github.com/srymh/vite-plugin-electron/tree/main/packages/vite-plugin-electron#readme",
+  "bugs": {
+    "url": "https://github.com/srymh/vite-plugin-electron/issues"
+  },
   "license": "MIT",
   "author": "srymh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/srymh/vite-plugin-electron.git",
+    "directory": "packages/vite-plugin-electron"
+  },
   "files": [
     "dist"
   ],
@@ -34,5 +43,11 @@
     "typescript": "~6.0.2",
     "vite": "^8.0.3",
     "vitest": "^4.1.2"
+  },
+  "peerDependencies": {
+    "vite": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

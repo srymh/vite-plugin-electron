@@ -1,5 +1,5 @@
 {
-  "name": "@srymh/web",
+  "name": "@repo/multi-web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@srymh/electron-api": "workspace:*",
+    "@repo/multi-electron-api": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

@@ -14,7 +14,7 @@ importers:
 
   example-multiple/desktop:
     dependencies:
-      '@srymh/electron-api':
+      '@repo/multi-electron-api':
         specifier: workspace:*
         version: link:../electron-api
     devDependencies:
@@ -41,7 +41,7 @@ importers:
 
   example-multiple/web:
     dependencies:
-      '@srymh/electron-api':
+      '@repo/multi-electron-api':
         specifier: workspace:*
         version: link:../electron-api
       react:
