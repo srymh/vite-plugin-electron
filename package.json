@@ -1,13 +1,6 @@
 {
   "name": "vite-plugin-electron",
   "private": true,
-  "keywords": [
-    "electron",
-    "plugin",
-    "vite"
-  ],
-  "license": "MIT",
-  "author": "srymh",
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @srymh/vite-plugin-electron build",
