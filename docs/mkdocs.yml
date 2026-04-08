@@ -1,0 +1,20 @@
+site_name: '@srymh/vite-plugin-electron'
+site_description: Vite 8 Environment API を使った Electron main/preload ビルド統合プラグイン
+site_url: https://srymh.github.io/vite-plugin-electron/
+repo_url: https://github.com/srymh/vite-plugin-electron
+repo_name: srymh/vite-plugin-electron
+edit_uri: edit/main/docs/docs/
+strict: true
+theme:
+  name: material
+  language: ja
+
+nav:
+  - ホーム: index.md
+  - はじめに: getting-started.md
+  - ビルド・開発ガイド: guide.md
+  - オプション詳細: options.md
+  - 内部アーキテクチャ: architecture.md
+  - VS Code デバッグ: vscode-debug.md
+  - 責務とスコープ: scope.md
+

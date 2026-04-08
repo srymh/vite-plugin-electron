@@ -1,0 +1,18 @@
+# uv
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Build / cache
+site/
+dist/
+build/
+.cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
