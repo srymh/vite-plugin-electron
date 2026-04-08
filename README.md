@@ -13,6 +13,7 @@ Vite 8 の Environment API を使って Electron main/preload プロセスのビ
 ## ドキュメント
 
 - [docs/docs/](docs/docs/) — プラグインの詳細ドキュメント（MkDocs）
+- https://srymh.github.io/vite-plugin-electron/ — 公開ドキュメント
 - [packages/vite-plugin-electron/README.md](packages/vite-plugin-electron/README.md) — npm 向けの概要（英語）
 - [packages/vite-plugin-electron/README_ja.md](packages/vite-plugin-electron/README_ja.md) — 同上の日本語版
 

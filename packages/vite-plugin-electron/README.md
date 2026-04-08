@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@srymh/vite-plugin-electron.svg)](https://npmjs.com/package/@srymh/vite-plugin-electron)
 
-> [日本語版 README はこちら](README_ja.md)
+> [日本語版 README はこちら](https://github.com/srymh/vite-plugin-electron/blob/main/packages/vite-plugin-electron/README_ja.md)
 
 A small, experimental Vite 8 plugin that integrates Electron main/preload process builds using Vite's Environment API.
 
@@ -15,7 +15,7 @@ The plugin adds custom environments for Electron main/preload and handles:
 - Debug support for attaching to both main and renderer from VS Code
 - Both co-located (internal) and separate (external) renderer setups
 
-For detailed documentation, see the [docs site](../../docs/docs/index.md).
+For detailed documentation, see the [docs site](https://srymh.github.io/vite-plugin-electron/).
 
 ## Quick Start
 
