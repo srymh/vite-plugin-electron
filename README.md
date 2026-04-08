@@ -1,5 +1,7 @@
 # vite-plugin-electron
 
+[![npm version](https://img.shields.io/npm/v/@srymh/vite-plugin-electron.svg)](https://npmjs.com/package/@srymh/vite-plugin-electron)
+
 Vite 8 の Environment API を使って Electron main/preload プロセスのビルドを統合するプラグインと、その利用例をまとめた pnpm workspace です。
 
 ## パッケージ
