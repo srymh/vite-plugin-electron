@@ -122,12 +122,12 @@ pnpm lint    # oxlint
 
 ## さらに詳しく
 
-- [はじめに](../../docs/docs/getting-started.md)
-- [ビルド・開発ガイド](../../docs/docs/guide.md)
-- [オプション詳細](../../docs/docs/options.md)
-- [内部アーキテクチャ](../../docs/docs/architecture.md)
-- [VS Code デバッグ](../../docs/docs/vscode-debug.md)
-- [責務とスコープ](../../docs/docs/scope.md)
+- [はじめに](https://srymh.github.io/vite-plugin-electron/getting-started/)
+- [ビルド・開発ガイド](https://srymh.github.io/vite-plugin-electron/guide/)
+- [オプション詳細](https://srymh.github.io/vite-plugin-electron/options/)
+- [内部アーキテクチャ](https://srymh.github.io/vite-plugin-electron/architecture/)
+- [VS Code デバッグ](https://srymh.github.io/vite-plugin-electron/vscode-debug/)
+- [責務とスコープ](https://srymh.github.io/vite-plugin-electron/scope/)
 
 ## License
 
