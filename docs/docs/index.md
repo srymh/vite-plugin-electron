@@ -1,13 +1,42 @@
 # vite-plugin-electron
 
-[![](https://img.shields.io/npm/v/@srymh/vite-plugin-electron.svg)](https://npmjs.com/package/@srymh/vite-plugin-electron)
+[![npm version](https://img.shields.io/npm/v/@srymh/vite-plugin-electron.svg)](https://npmjs.com/package/@srymh/vite-plugin-electron)
 
-Vite 8 の Environment API を使って Electron main process を扱うための、小さな実験的 plugin です。
+Vite 8 の Environment API を使って Electron main/preload プロセスのビルドを統合する、小さな実験的プラグインです。
 
-この plugin は Electron main/preload 用の custom environment を追加し、次をまとめて扱います。
+## 特徴
 
-- `vite dev` で renderer dev server を起動する
-- Electron main を watch build する
+- `vite dev` で renderer dev server の起動と Electron main の watch build・自動再起動を一括管理
+- `vite build` で client と Electron 側をまとめてビルド
+- renderer 同居構成（internal）と外部 renderer 構成（external）の両方に対応
+- VS Code から main / renderer の両方へ attach しやすいデバッグサポート
+- preload entry を文字列、配列、名前付き map のいずれでも指定可能
+- `electron_main` と `electron_preload` の custom environment を Vite に登録
+
+## このドキュメントの位置づけ
+
+このドキュメントサイトはプラグインの詳細な仕様・設計情報をまとめたものです。
+
+ソースコードが常に source of truth です。ドキュメントはソースに追従していない場合があります。最新の正確な仕様はソースコードを参照してください。
+
+## ドキュメント構成
+
+| ページ | 内容 |
+|---|---|
+| [はじめに](getting-started.md) | インストール、Quick Start、基本的な設定例 |
+| [ビルド・開発ガイド](guide.md) | `vite dev` / `vite build` の動作と external renderer の使い方 |
+| [オプション詳細](options.md) | 全オプションのリファレンス（書式例、制約、既定値） |
+| [内部アーキテクチャ](architecture.md) | モジュール構成、処理フロー、設計方針 |
+| [VS Code デバッグ](vscode-debug.md) | launch.json の構成と使い方 |
+| [責務とスコープ](scope.md) | プラグインが担うことと担わないこと |
+
+## リンク
+
+- [npm package](https://npmjs.com/package/@srymh/vite-plugin-electron)
+- [GitHub リポジトリ](https://github.com/srymh/vite-plugin-electron)
+- [example-single](https://github.com/srymh/vite-plugin-electron/tree/main/example-single) — renderer 同居型のサンプル
+- [example-multiple](https://github.com/srymh/vite-plugin-electron/tree/main/example-multiple) — external renderer サンプル
+
 - build 完了ごとに Electron を再起動する
 - `vite build` で client と Electron 側をまとめてビルドする
 - VS Code から main / renderer の両方へ attach しやすくする
