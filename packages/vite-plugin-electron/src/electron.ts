@@ -14,6 +14,7 @@ import {
 } from './environment'
 import {
   createOutDirIgnorePatterns,
+  getUniqueOutDirs,
   resolveElectronPluginOptions,
   validatePackageJsonMainField,
 } from './options'
@@ -186,6 +187,7 @@ export function electron(options: ElectronPluginOptions): Plugin {
         preloadEntries: resolvedOptions.preloadEntries,
         debug: resolvedOptions.debugOptions,
         rootDir: resolvedOptions.rootDir,
+        outDirs: getUniqueOutDirs(resolvedOptions),
         rendererDevUrl: resolvedOptions.rendererOptions.devUrl,
         rendererDevUrlEnvVar: resolvedOptions.rendererOptions.devUrlEnvVar,
         onRestart() {},

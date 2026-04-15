@@ -467,3 +467,22 @@ export function normalizeGlobPath(filePath: string): string {
     .replace(/^\.?\//, '')
     .replace(/\/$/, '')
 }
+
+/**
+ * dev session 開始時にクリーンすべき出力ディレクトリの一覧を返す。
+ *
+ * main と preload の outDir が同一なら 1 要素、異なれば 2 要素になる。
+ *
+ * @param resolvedOptions 解決済みの plugin オプション
+ * @returns 重複を排除した outDir の配列
+ */
+export function getUniqueOutDirs(
+  resolvedOptions: Pick<
+    ResolvedElectronPluginOptions,
+    'mainOutDir' | 'preloadOutDir'
+  >,
+): string[] {
+  return [
+    ...new Set([resolvedOptions.mainOutDir, resolvedOptions.preloadOutDir]),
+  ]
+}

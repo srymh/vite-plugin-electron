@@ -63,13 +63,16 @@ export function createElectronEnvironmentBuildConfig(
   resolvedOptions: ResolvedElectronPluginOptions,
 ): UserConfig {
   const isMain = name === ELECTRON_MAIN_ENVIRONMENT_NAME
+  const hasSharedOutDir =
+    Object.keys(resolvedOptions.preloadEntries).length > 0 &&
+    resolvedOptions.mainOutDir === resolvedOptions.preloadOutDir
 
   const baseConfig: UserConfig = {
     build: {
       outDir: isMain
         ? resolvedOptions.mainOutDir
         : resolvedOptions.preloadOutDir,
-      emptyOutDir: isMain,
+      emptyOutDir: isMain && !hasSharedOutDir,
       copyPublicDir: false,
       emitAssets: false,
       minify: false,
@@ -111,7 +114,9 @@ export function createElectronEnvironmentBuildConfig(
   }
 
   // preload は main が先にクリーンするため、常に emptyOutDir を無効にする。
-  if (!isMain) {
+  // main でも preload と同じ outDir を共有する場合は無効にする（watch リビルド時に
+  // main のクリーンが preload の成果物を巻き添えに削除するのを防ぐ）。
+  if (!isMain || hasSharedOutDir) {
     merged.build.emptyOutDir = false
   }
 
