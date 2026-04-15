@@ -1,13 +1,13 @@
 {
   "name": "@srymh/vite-plugin-electron",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "description": "Vite 8 Environment API based plugin for integrating Electron main/preload build",
   "keywords": [
     "electron",
     "vite",
     "vite-plugin"
   ],
-  "homepage": "https://github.com/srymh/vite-plugin-electron/tree/main/packages/vite-plugin-electron#readme",
+  "homepage": "https://srymh.github.io/vite-plugin-electron/",
   "bugs": {
     "url": "https://github.com/srymh/vite-plugin-electron/issues"
   },

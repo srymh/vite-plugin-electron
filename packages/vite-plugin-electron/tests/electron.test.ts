@@ -23,6 +23,7 @@ import {
   getElectronDebugArgs,
   getElectronSpawnArgs,
   getElectronSpawnEnv,
+  getUniqueOutDirs,
   isProcessStopRequired,
   isSuccessfulWindowsTaskkillExitCode,
   resolveDebugOptions,
@@ -166,6 +167,46 @@ describe('electron plugin', () => {
       entryFileNames: '[name].js',
       format: 'es',
     })
+    expect(config.build?.emptyOutDir).toBe(true)
+  })
+
+  it('main と preload が同じ outDir を共有する場合 main の emptyOutDir は false になる', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: { entry: 'electron/main.ts' },
+          preload: { entry: 'electron/preload.ts' },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    expect(config.build?.emptyOutDir).toBe(false)
+  })
+
+  it('main と preload が異なる outDir なら main の emptyOutDir は true になる', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: {
+            entry: 'electron/main.ts',
+            vite: { build: { outDir: 'dist-electron/main' } },
+          },
+          preload: {
+            entry: 'electron/preload.ts',
+            vite: { build: { outDir: 'dist-electron/preload' } },
+          },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
     expect(config.build?.emptyOutDir).toBe(true)
   })
 
@@ -859,5 +900,27 @@ describe('electron plugin', () => {
         validatePackageJsonMainField(tmpDir, mainOutputPath),
       ).toThrow(/見つかりません/)
     })
+  })
+
+  it('同一 outDir なら重複を排除して 1 要素を返す', () => {
+    // Arrange / Act
+    const dirs = getUniqueOutDirs({
+      mainOutDir: 'dist-electron',
+      preloadOutDir: 'dist-electron',
+    })
+
+    // Assert
+    expect(dirs).toEqual(['dist-electron'])
+  })
+
+  it('異なる outDir なら両方を返す', () => {
+    // Arrange / Act
+    const dirs = getUniqueOutDirs({
+      mainOutDir: 'dist-electron/main',
+      preloadOutDir: 'dist-electron/preload',
+    })
+
+    // Assert
+    expect(dirs).toEqual(['dist-electron/main', 'dist-electron/preload'])
   })
 })

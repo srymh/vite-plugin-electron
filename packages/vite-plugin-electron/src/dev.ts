@@ -1,4 +1,6 @@
 import { type ChildProcess } from 'node:child_process'
+import { rmSync } from 'node:fs'
+import { resolve } from 'node:path'
 import process from 'node:process'
 
 import { createBuilder, type ViteDevServer } from 'vite'
@@ -45,6 +47,7 @@ type ElectronDevOptions = {
   preloadEntries: ElectronPreloadEntryMap
   debug: ResolvedElectronDebugOptions
   rootDir: string
+  outDirs: string[]
   rendererDevUrl?: string
   rendererDevUrlEnvVar: string
   onRestart: (childProcess: ChildProcess) => void
@@ -184,6 +187,13 @@ async function startElectronDevSession(
   const devServerUrl = resolveDevServerUrl(server, options.rendererDevUrl)
   const hasPreloadEntries = Object.keys(options.preloadEntries).length > 0
   const environmentNames = getElectronWatchEnvironmentNames(hasPreloadEntries)
+
+  // main と preload が同じ outDir を共有する構成では emptyOutDir を無効にしているため、
+  // dev session 開始時に 1 回だけ手動で出力ディレクトリをクリーンし、前回の古い成果物を
+  // 残さないようにする。
+  for (const outDir of options.outDirs) {
+    rmSync(resolve(options.rootDir, outDir), { recursive: true, force: true })
+  }
 
   // 起動済み dev server の resolved config から必要な設定を引き継ぐ。
   // createBuilder は InlineConfig を受け取り、内部で config ファイルを再読み込みするため、
