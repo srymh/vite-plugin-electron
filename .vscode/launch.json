@@ -35,7 +35,7 @@
       "address": "localhost",
       "port": 9229,
       "restart": true,
-      "timeout": 30000,
+      "timeout": 60000,
       "cwd": "${workspaceFolder}/example-single",
       "sourceMaps": true,
       "skipFiles": ["<node_internals>/**"]
@@ -46,9 +46,10 @@
       "request": "attach",
       "address": "localhost",
       "port": 9222,
+      "restart": true,
       "webRoot": "${workspaceFolder}/example-single",
       "sourceMaps": true,
-      "timeout": 30000
+      "timeout": 60000
     },
     {
       "name": "🚀 Launch Monorepo Dev (Multiple Package Example)",
@@ -64,7 +65,7 @@
       "address": "localhost",
       "port": 9229,
       "restart": true,
-      "timeout": 30000,
+      "timeout": 60000,
       "cwd": "${workspaceFolder}/example-multiple/desktop",
       "sourceMaps": true,
       "skipFiles": ["<node_internals>/**"]
@@ -75,9 +76,10 @@
       "request": "attach",
       "address": "localhost",
       "port": 9222,
+      "restart": true,
       "webRoot": "${workspaceFolder}/example-multiple/web",
       "sourceMaps": true,
-      "timeout": 30000
+      "timeout": 60000
     }
   ]
 }
