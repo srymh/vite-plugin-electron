@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { basename, extname, relative, resolve } from 'node:path'
 import process from 'node:process'
 
@@ -290,17 +291,69 @@ export function getElectronDebugArgs(
 }
 
 /**
- * debug 引数と main 出力パスを結合し、Electron 起動用の argv を返す。
+ * debug 引数とプロジェクトルートを結合し、Electron 起動用の argv を返す。
+ *
+ * ルートディレクトリを渡すことで、Electron がプロジェクトの package.json を読み取り、
+ * `app.getName()` や `app.getPath('userData')` を正しく解決できるようにする。
  *
  * @param debug 解決済み debug 設定
- * @param mainOutputPath 実行対象の Electron main 出力ファイル
+ * @param rootDir Electron に渡すプロジェクトルートディレクトリ
  * @returns `spawn(electron, args)` に渡す配列
  */
 export function getElectronSpawnArgs(
   debug: ResolvedElectronDebugOptions,
-  mainOutputPath: string,
+  rootDir: string,
 ): string[] {
-  return [...getElectronDebugArgs(debug), mainOutputPath]
+  return [...getElectronDebugArgs(debug), rootDir]
+}
+
+/**
+ * プロジェクトの package.json の `main` フィールドが Electron main の出力パスと一致するか検証する。
+ *
+ * Electron はプロジェクトルートを引数として受け取ると、package.json の `main` フィールドから
+ * エントリーポイントを解決する。`main` が正しく設定されていない場合、Electron は起動に失敗するか
+ * 予期しないファイルを実行してしまう。
+ *
+ * @param rootDir プロジェクトルートディレクトリ
+ * @param mainOutputPath plugin が算出した Electron main の出力パス
+ * @throws package.json が存在しない、`main` フィールドが未設定、または出力パスと不一致の場合
+ */
+export function validatePackageJsonMainField(
+  rootDir: string,
+  mainOutputPath: string,
+): void {
+  const packageJsonPath = resolve(rootDir, 'package.json')
+
+  let content: string
+  try {
+    content = readFileSync(packageJsonPath, 'utf-8')
+  } catch {
+    throw new Error(
+      `[vite-plugin-electron] ${packageJsonPath} が見つかりません。` +
+        ' Electron はプロジェクトルートの package.json からアプリ名とエントリーポイントを解決します。',
+    )
+  }
+
+  const packageJson = JSON.parse(content) as { main?: string }
+  const mainField = packageJson.main
+
+  if (!mainField) {
+    throw new Error(
+      '[vite-plugin-electron] package.json に "main" フィールドがありません。' +
+        ` Electron のエントリーポイントとして "main": "${relative(rootDir, mainOutputPath)}" を追加してください。`,
+    )
+  }
+
+  const resolvedMainField = resolve(rootDir, mainField)
+  const resolvedExpected = resolve(mainOutputPath)
+
+  if (resolvedMainField !== resolvedExpected) {
+    throw new Error(
+      `[vite-plugin-electron] package.json の "main" フィールド ("${mainField}") が` +
+        ` Electron main の出力パス ("${relative(rootDir, mainOutputPath)}") と一致しません。` +
+        ` "main": "${relative(rootDir, mainOutputPath)}" に修正してください。`,
+    )
+  }
 }
 
 /**

@@ -18,7 +18,7 @@ import { type ResolvedElectronDebugOptions } from './types'
  */
 type LaunchElectronProcessOptions = {
   debug: ResolvedElectronDebugOptions
-  mainOutputPath: string
+  rootDir: string
   devServerUrl: string
   devServerUrlEnvVar: string
 }
@@ -70,10 +70,7 @@ export async function restartElectronProcess(
 export function launchElectronProcess(
   options: LaunchElectronProcessOptions,
 ): ChildProcess {
-  const electronArgs = getElectronSpawnArgs(
-    options.debug,
-    options.mainOutputPath,
-  )
+  const electronArgs = getElectronSpawnArgs(options.debug, options.rootDir)
 
   if (options.debug.enabled) {
     console.log(

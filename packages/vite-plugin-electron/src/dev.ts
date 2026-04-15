@@ -44,7 +44,7 @@ type ElectronDevSession = {
 type ElectronDevOptions = {
   preloadEntries: ElectronPreloadEntryMap
   debug: ResolvedElectronDebugOptions
-  mainOutputPath: string
+  rootDir: string
   rendererDevUrl?: string
   rendererDevUrlEnvVar: string
   onRestart: (childProcess: ChildProcess) => void
@@ -233,7 +233,7 @@ async function startElectronDevSession(
           currentElectronProcess,
           {
             debug: options.debug,
-            mainOutputPath: options.mainOutputPath,
+            rootDir: options.rootDir,
             devServerUrl,
             devServerUrlEnvVar: options.rendererDevUrlEnvVar,
           },

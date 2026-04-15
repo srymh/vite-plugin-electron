@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "electron dist-electron/main.js",
+    "preview": "electron .",
     "package": "pnpm build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
