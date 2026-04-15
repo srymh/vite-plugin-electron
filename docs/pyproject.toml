@@ -1,6 +1,6 @@
 [project]
 name = "vite-plugin-electron"
-version = "0.2.0-beta.2"
+version = "0.2.0-beta.3"
 description = "Vite 8 Environment API based plugin for integrating Electron main/preload build"
 readme = "README.md"
 requires-python = ">=3.11"
