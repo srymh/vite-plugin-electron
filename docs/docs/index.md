@@ -299,7 +299,7 @@ Electron 側 build のうち、plugin 利用者に開いている項目です。
 - `emitAssets`: `false`
 - `reportCompressedSize`: `false`
 
-`emptyOutDir` は main build 側でだけ有効にし、preload build 側では false 固定にしています。これにより main / preload を同じ `outDir` に出しても、お互いの出力を消しにくい構成にしています。
+`emptyOutDir` は preload build 側では常に false 固定です。main build 側は、preload と異なる `outDir` を使う場合にのみ `true` になります。main と preload が同じ `outDir` を共有する場合は main も `false` になり、dev の watch リビルドで preload の成果物が巻き添えに削除されるのを防ぎます。dev session 開始時には出力ディレクトリを 1 回だけクリーンするため、前回の古い成果物が残ることはありません。
 
 注意点として、package 自体の配布ビルド target は [tsdown.config.ts](https://github.com/srymh/vite-plugin-electron/blob/main/packages/vite-plugin-electron/tsdown.config.ts) で `node20`、Electron 側 build の既定 target は plugin option で `node22` です。前者は npm package 用、後者は Electron app 用で役割が異なります。
 

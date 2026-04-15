@@ -222,7 +222,7 @@ main と preload の両方に適用されるビルド設定の既定値:
 | `copyPublicDir` | `false` | — |
 | `emitAssets` | `false` | — |
 | `reportCompressedSize` | `false` | — |
-| `emptyOutDir` | main: `true`, preload: `false` | 同一 outDir でも互いの出力を消さない |
+| `emptyOutDir` | main: `true`（※）, preload: `false` | ※ main と preload が同一 outDir を共有する場合は main も `false` になる |
 
 プラグインが固定する項目（ユーザーが上書きできない）:
 
