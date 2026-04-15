@@ -1,6 +1,8 @@
-import { resolve } from 'node:path'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   createElectronBuildCoordinator,
@@ -26,6 +28,7 @@ import {
   resolveDebugOptions,
   resolveElectronPluginOptions,
   resolveRendererOptions,
+  validatePackageJsonMainField,
 } from '../src/options'
 
 /** OS 間でパス区切りを揃える正規化ヘルパー */
@@ -460,12 +463,10 @@ describe('electron plugin', () => {
     })
 
     // Act / Assert
-    expect(
-      getElectronSpawnArgs(debug, 'D:/repo/dist-electron/main.js'),
-    ).toEqual([
+    expect(getElectronSpawnArgs(debug, 'D:/repo')).toEqual([
       '--inspect=localhost:9333',
       '--remote-debugging-port=9444',
-      'D:/repo/dist-electron/main.js',
+      'D:/repo',
     ])
     expect(
       getElectronSpawnEnv('http://localhost:5173', 'VITE_DEV_SERVER_URL', {
@@ -780,5 +781,83 @@ describe('electron plugin', () => {
         TEST_CWD,
       ),
     ).toThrow(/Duplicate preload entry name/)
+  })
+
+  describe('validatePackageJsonMainField', () => {
+    let tmpDir: string
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), 'vpe-test-'))
+    })
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('package.json の main フィールドが出力パスと一致すればエラーにならない', () => {
+      // Arrange
+      writeFileSync(
+        join(tmpDir, 'package.json'),
+        JSON.stringify({ name: 'my-app', main: './dist-electron/main.js' }),
+      )
+      const mainOutputPath = resolve(tmpDir, 'dist-electron/main.js')
+
+      // Act / Assert
+      expect(() =>
+        validatePackageJsonMainField(tmpDir, mainOutputPath),
+      ).not.toThrow()
+    })
+
+    it('main フィールドが ./ なしでも正しく一致する', () => {
+      // Arrange
+      writeFileSync(
+        join(tmpDir, 'package.json'),
+        JSON.stringify({ name: 'my-app', main: 'dist-electron/main.js' }),
+      )
+      const mainOutputPath = resolve(tmpDir, 'dist-electron/main.js')
+
+      // Act / Assert
+      expect(() =>
+        validatePackageJsonMainField(tmpDir, mainOutputPath),
+      ).not.toThrow()
+    })
+
+    it('main フィールドが出力パスと不一致ならエラーを投げる', () => {
+      // Arrange
+      writeFileSync(
+        join(tmpDir, 'package.json'),
+        JSON.stringify({ name: 'my-app', main: 'dist/index.js' }),
+      )
+      const mainOutputPath = resolve(tmpDir, 'dist-electron/main.js')
+
+      // Act / Assert
+      expect(() =>
+        validatePackageJsonMainField(tmpDir, mainOutputPath),
+      ).toThrow(/一致しません/)
+    })
+
+    it('main フィールドが未設定ならエラーを投げる', () => {
+      // Arrange
+      writeFileSync(
+        join(tmpDir, 'package.json'),
+        JSON.stringify({ name: 'my-app' }),
+      )
+      const mainOutputPath = resolve(tmpDir, 'dist-electron/main.js')
+
+      // Act / Assert
+      expect(() =>
+        validatePackageJsonMainField(tmpDir, mainOutputPath),
+      ).toThrow(/"main" フィールドがありません/)
+    })
+
+    it('package.json が存在しなければエラーを投げる', () => {
+      // Arrange
+      const mainOutputPath = resolve(tmpDir, 'dist-electron/main.js')
+
+      // Act / Assert
+      expect(() =>
+        validatePackageJsonMainField(tmpDir, mainOutputPath),
+      ).toThrow(/見つかりません/)
+    })
   })
 })

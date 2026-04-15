@@ -1,6 +1,5 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["AGENTS.md"],
   "semi": false,
   "singleQuote": true,
   "printWidth": 80,
@@ -8,5 +7,12 @@
     "newlinesBetween": true,
     "order": "asc",
     "internalPattern": ["@repo"]
-  }
+  },
+  "ignorePatterns": [
+    "AGENTS.md",
+    "README.md",
+    "README_ja.md",
+    "docs/**",
+    ".*/**"
+  ]
 }

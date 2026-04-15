@@ -15,6 +15,7 @@ import {
 import {
   createOutDirIgnorePatterns,
   resolveElectronPluginOptions,
+  validatePackageJsonMainField,
 } from './options'
 import {
   ELECTRON_MAIN_ENVIRONMENT_NAME,
@@ -176,10 +177,15 @@ export function electron(options: ElectronPluginOptions): Plugin {
      * @param server Vite dev server
      */
     async configureServer(server) {
+      validatePackageJsonMainField(
+        resolvedOptions.rootDir,
+        resolvedOptions.mainOutputPath,
+      )
+
       registerElectronDevServer(server, {
         preloadEntries: resolvedOptions.preloadEntries,
         debug: resolvedOptions.debugOptions,
-        mainOutputPath: resolvedOptions.mainOutputPath,
+        rootDir: resolvedOptions.rootDir,
         rendererDevUrl: resolvedOptions.rendererOptions.devUrl,
         rendererDevUrlEnvVar: resolvedOptions.rendererOptions.devUrlEnvVar,
         onRestart() {},
