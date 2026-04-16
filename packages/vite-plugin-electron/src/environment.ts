@@ -98,6 +98,13 @@ export function createElectronEnvironmentBuildConfig(
 
   // --- 不変の制約を再適用 ---
 
+  // consumer: 'server' による暗黙的な node_modules 全 external 化を無効にする。
+  // Electron は SSR と異なり asar 内で依存解決が失敗するケースがあるため、
+  // デフォルトではすべての依存をバンドルに含める。
+  // ユーザーが明示的に resolve.noExternal を設定した場合はそちらを尊重する。
+  merged.resolve ??= {}
+  merged.resolve.noExternal ??= true
+
   // rolldownOptions.input は常に plugin が管理する。ユーザーの上書きは無視する。
   merged.build.rolldownOptions.input = isMain
     ? { [resolvedOptions.mainEntryName]: resolvedOptions.mainEntry }
