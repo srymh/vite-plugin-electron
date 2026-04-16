@@ -219,6 +219,7 @@ main と preload の両方に適用されるビルド設定の既定値:
 | `sourcemap` | `true` | — |
 | `target` | `'node22'` | — |
 | `external` | `['electron']` | 常に `electron` を externalize |
+| `resolve.noExternal` | `true` | `consumer: 'server'` による暗黙的な node_modules 全 external 化を無効にする |
 | `copyPublicDir` | `false` | — |
 | `emitAssets` | `false` | — |
 | `reportCompressedSize` | `false` | — |

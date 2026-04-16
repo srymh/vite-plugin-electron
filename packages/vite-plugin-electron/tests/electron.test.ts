@@ -450,6 +450,81 @@ describe('electron plugin', () => {
     expect(config.build?.target).toBe('node20')
   })
 
+  it('resolve.noExternal がデフォルトで true に設定される', () => {
+    // Arrange
+    const mainConfig = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: { entry: 'electron/main.ts' },
+          preload: { entry: 'electron/preload.ts' },
+        },
+        TEST_CWD,
+      ),
+    )
+    const preloadConfig = createElectronEnvironmentBuildConfig(
+      'electron_preload',
+      resolveElectronPluginOptions(
+        {
+          main: { entry: 'electron/main.ts' },
+          preload: { entry: 'electron/preload.ts' },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    expect(mainConfig.resolve?.noExternal).toBe(true)
+    expect(preloadConfig.resolve?.noExternal).toBe(true)
+  })
+
+  it('vite override で resolve.noExternal を上書きできる', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: {
+            entry: 'electron/main.ts',
+            vite: {
+              resolve: {
+                noExternal: ['some-pkg'],
+              },
+            },
+          },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    expect(config.resolve?.noExternal).toEqual(['some-pkg'])
+  })
+
+  it('vite override で resolve.external を指定して特定パッケージだけを外部化できる', () => {
+    // Arrange
+    const config = createElectronEnvironmentBuildConfig(
+      'electron_main',
+      resolveElectronPluginOptions(
+        {
+          main: {
+            entry: 'electron/main.ts',
+            vite: {
+              resolve: {
+                external: ['better-sqlite3'],
+              },
+            },
+          },
+        },
+        TEST_CWD,
+      ),
+    )
+
+    // Assert
+    expect(config.resolve?.external).toEqual(['better-sqlite3'])
+    expect(config.resolve?.noExternal).toBe(true)
+  })
+
   it('mainOutputPath が vite override の outDir と entryFileNames を反映する', () => {
     // Arrange
     const resolved = resolveElectronPluginOptions(
