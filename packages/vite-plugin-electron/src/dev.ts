@@ -21,7 +21,7 @@ import {
 } from './types'
 
 /**
- * Rollup watch builder が返す watcher のうち、この plugin が利用する最小インターフェース。
+ * Rolldown watch builder が返す watcher のうち、この plugin が利用する最小インターフェース。
  *
  * Vite 側の具体型に強く依存しすぎないよう、必要な `on` と `close` だけに絞っている。
  */
@@ -283,6 +283,14 @@ async function startElectronDevSession(
  *
  * Electron main process はこの URL を環境変数経由で受け取り、renderer を
  * `loadURL` するため、dev 起動前に必ず解決できる必要がある。
+ *
+ * ## `resolvedUrls` の参照タイミングについて
+ *
+ * `server.resolvedUrls` は `httpServer` の `listening` イベント後に設定される。
+ * 現行の Vite 実装ではこの順序が保たれているが、ドキュメントされた保証ではないため、
+ * Vite のメジャーアップデート時に壊れるリスクがある。
+ * 防御策として `resolvedUrls` が null の場合はエラーを投げる。
+ * `rendererDevUrl` を明示指定する external mode ではこのパスを通らないため影響しない。
  *
  * @param server Vite dev server
  * @returns 利用可能な dev server URL

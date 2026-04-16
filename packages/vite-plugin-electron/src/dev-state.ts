@@ -83,6 +83,9 @@ export function createElectronBuildCoordinator(
         // restart を返した直後にリセットし、次の watch cycle に備える。
         // BUNDLE_START による個別リセットと合わせて二重に保護する。
         mainReady = false
+        // preload なし構成では待機不要なので true に戻し、main 完了だけで
+        // restart できる状態を維持する。preload あり構成では false にして
+        // 次の cycle で両方の END を待たせる。
         preloadReady = !hasPreloadEntries
         return { type: 'restart' }
       }

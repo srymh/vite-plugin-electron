@@ -148,7 +148,7 @@ export function createExternalRendererClientBuildConfig(): UserConfig {
  * build 成立のために client environment 自体は走らせるが、desktop package 側には
  * renderer 資産を残したくないため、最終出力だけを空にする。
  *
- * @param bundle Rollup が書き出し直前に持つ bundle
+ * @param bundle Rolldown が書き出し直前に持つ bundle
  */
 export function removeExternalRendererClientBuildOutputs(
   bundle: Record<string, unknown>,

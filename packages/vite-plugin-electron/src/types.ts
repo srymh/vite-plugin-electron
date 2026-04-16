@@ -1,7 +1,7 @@
 import type { UserConfig } from 'vite'
 
 /**
- * Rollup watcher から受け取るイベントのうち、この plugin が参照する最小形。
+ * Rolldown watcher から受け取るイベントのうち、この plugin が参照する最小形。
  */
 export type BuildWatcherEvent = {
   code: string
