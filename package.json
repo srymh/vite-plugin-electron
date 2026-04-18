@@ -13,6 +13,7 @@
     "build:multiple": "pnpm --filter @repo/multi-web build && pnpm --filter @repo/multi-desktop build",
     "preview:multiple": "pnpm build:multiple && pnpm --filter @repo/multi-desktop preview",
     "package:multiple": "pnpm build:multiple && pnpm --filter @repo/multi-desktop package",
+    "lint": "pnpm --filter @srymh/vite-plugin-electron run lint",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check"
   },

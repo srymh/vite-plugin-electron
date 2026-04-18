@@ -1,22 +1,32 @@
 {
   "compilerOptions": {
+    /* 実行環境 */
     "target": "ES2023",
     "lib": ["ES2023"],
+    "types": ["node"],
+
+    /* モジュール解決 */
     "module": "ESNext",
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
-    "isolatedDeclarations": true,
-    "declaration": true,
     "moduleDetection": "force",
+
+    /* 宣言と出力 */
+    "declaration": true,
+    "isolatedDeclarations": true,
     "noEmit": true,
+
+    /* 厳格な型チェック */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "erasableSyntaxOnly": true,
+
+    /* 相互運用と診断 */
     "skipLibCheck": true,
-    "types": ["node"]
+    "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }
