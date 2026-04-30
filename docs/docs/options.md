@@ -167,10 +167,20 @@ debug が有効な場合、Electron 起動時に次が付与されます。
 ```ts
 type ElectronRendererMode = 'internal' | 'external'
 
+type ElectronRendererWaitForReadyMode = 'auto' | 'always' | 'off'
+
+type ElectronRendererWaitForReadyOptions = {
+  mode?: ElectronRendererWaitForReadyMode
+  timeoutMs?: number
+  intervalMs?: number
+  requestTimeoutMs?: number
+}
+
 type ElectronRendererOptions = {
   mode?: ElectronRendererMode
   devUrl?: string
   devUrlEnvVar?: string
+  waitForReady?: ElectronRendererWaitForReadyOptions
 }
 ```
 
@@ -179,6 +189,7 @@ type ElectronRendererOptions = {
 | `mode` | `ElectronRendererMode` | 自動推論 | renderer の配置方式 |
 | `devUrl` | `string` | — | 外部 renderer dev server の URL |
 | `devUrlEnvVar` | `string` | `'VITE_DEV_SERVER_URL'` | Electron main へ URL を渡す環境変数名 |
+| `waitForReady` | `ElectronRendererWaitForReadyOptions` | auto | external mode の起動待機設定 |
 
 ### mode の自動推論
 
@@ -195,6 +206,23 @@ type ElectronRendererOptions = {
 
 外部の renderer dev server URL を `devUrl` で指定します。desktop package 側に `index.html` を置く必要はありません。プラグインが `appType: 'custom'` と空の仮想 client entry を使ってビルドを成立させます。
 
+`waitForReady` を省略した場合でも、loopback の `http` / `https` URL では `mode: 'auto'` が有効になり、renderer dev server が応答可能になるまで Electron の初回起動と restart を待機します。タイムアウト時は Electron を起動せず、dev ログへエラーを出します。
+
+### `waitForReady`
+
+| フィールド | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `mode` | `ElectronRendererWaitForReadyMode` | `'auto'` | 待機対象の判定方式 |
+| `timeoutMs` | `number` | `30000` | 起動を諦めるまでの総待機時間 |
+| `intervalMs` | `number` | `500` | polling の間隔 |
+| `requestTimeoutMs` | `number` | `5000` | 単一リクエストのタイムアウト |
+
+- `auto`: external mode かつ loopback の `http` / `https` URL (`localhost`, `127.0.0.1`, `::1`) のときだけ待機します。
+- `always`: external mode の `http` / `https` URL なら host に関係なく待機します。
+- `off`: 起動待機を無効にします。
+
+到達確認は `HEAD` 優先で行い、405 / 501 のように `HEAD` 非対応なサーバーには `GET` へフォールバックします。
+
 ```ts
 electron({
   main: { entry: 'src/main.ts' },
@@ -202,6 +230,10 @@ electron({
     mode: 'external',
     devUrl: 'http://localhost:5173',
     devUrlEnvVar: 'ELECTRON_RENDERER_URL',
+    waitForReady: {
+      mode: 'auto',
+      timeoutMs: 30_000,
+    },
   },
 })
 ```

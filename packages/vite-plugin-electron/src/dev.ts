@@ -18,6 +18,7 @@ import {
   type ElectronEnvironmentName,
   type ElectronPreloadEntryMap,
   type ResolvedElectronDebugOptions,
+  type ResolvedElectronRendererWaitForReadyOptions,
 } from './types'
 
 /**
@@ -48,8 +49,10 @@ type ElectronDevOptions = {
   debug: ResolvedElectronDebugOptions
   rootDir: string
   outDirs: string[]
+  rendererMode: 'internal' | 'external'
   rendererDevUrl?: string
   rendererDevUrlEnvVar: string
+  rendererWaitForReady: ResolvedElectronRendererWaitForReadyOptions
   onRestart: (childProcess: ChildProcess) => void
 }
 
@@ -244,8 +247,10 @@ async function startElectronDevSession(
           {
             debug: options.debug,
             rootDir: options.rootDir,
+            rendererMode: options.rendererMode,
             devServerUrl,
             devServerUrlEnvVar: options.rendererDevUrlEnvVar,
+            rendererWaitForReady: options.rendererWaitForReady,
           },
         )
 

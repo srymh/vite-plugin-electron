@@ -84,6 +84,9 @@ Preload entries output as CJS (`.cjs`). Main outputs as ESM (`.js`).
 | `mode` | `'internal' \| 'external'` | auto | Renderer placement mode |
 | `devUrl` | `string` | — | External renderer dev server URL |
 | `devUrlEnvVar` | `string` | `'VITE_DEV_SERVER_URL'` | Env var name for the renderer URL |
+| `waitForReady` | `ElectronRendererWaitForReadyOptions` | auto | Wait policy before launching Electron in external mode |
+
+`waitForReady` uses `mode: 'auto' | 'always' | 'off'` with optional `timeoutMs`, `intervalMs`, and `requestTimeoutMs`. In `auto`, the plugin waits only for loopback `http`/`https` renderer URLs such as `localhost`, `127.0.0.1`, and `::1`. If the timeout is reached, Electron is not spawned and the dev session logs an error.
 
 For full option details including preload entry formats, constraints, and build defaults, see the [options reference](../../docs/docs/options.md).
 
@@ -101,12 +104,14 @@ import {
   type ElectronDebugOptions,
   type ElectronRendererMode,
   type ElectronRendererOptions,
+  type ElectronRendererWaitForReadyMode,
+  type ElectronRendererWaitForReadyOptions,
 } from '@srymh/vite-plugin-electron'
 ```
 
 ## Build / Dev Behavior
 
-**`vite dev`**: Starts the renderer dev server, watch-builds `electron_main` (and `electron_preload` if configured), and restarts Electron when builds complete. Restart requests are coalesced by an internal scheduler to avoid unnecessary restarts.
+**`vite dev`**: Starts the renderer dev server, watch-builds `electron_main` (and `electron_preload` if configured), and restarts Electron when builds complete. In external mode, Electron can wait for the configured renderer URL before the initial launch and each restart. Restart requests are coalesced by an internal scheduler to avoid unnecessary restarts.
 
 **`vite build`**: Builds client, `electron_main`, and `electron_preload` environments. The plugin automatically enables `builder: {}`, so `vite build --app` is not required in user scripts.
 

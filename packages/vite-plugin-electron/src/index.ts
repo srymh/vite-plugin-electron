@@ -10,4 +10,6 @@ export type {
   ElectronPreloadOptions,
   ElectronRendererMode,
   ElectronRendererOptions,
+  ElectronRendererWaitForReadyMode,
+  ElectronRendererWaitForReadyOptions,
 } from './electron'
