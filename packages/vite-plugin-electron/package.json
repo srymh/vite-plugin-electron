@@ -1,6 +1,6 @@
 {
   "name": "@srymh/vite-plugin-electron",
-  "version": "0.2.0-beta.5",
+  "version": "0.2.0-beta.6",
   "description": "Vite 8 Environment API based plugin for integrating Electron main/preload build",
   "keywords": [
     "electron",
