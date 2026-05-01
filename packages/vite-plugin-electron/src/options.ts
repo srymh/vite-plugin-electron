@@ -8,10 +8,18 @@ import {
   type ElectronPluginOptions,
   type ElectronPreloadEntryMap,
   type ElectronPreloadInput,
+  type ElectronRendererOptions,
+  type ElectronRendererMode,
+  type ElectronRendererWaitForReadyMode,
   type ResolvedElectronDebugOptions,
   type ResolvedElectronPluginOptions,
   type ResolvedElectronRendererOptions,
+  type ResolvedElectronRendererWaitForReadyOptions,
 } from './types'
+
+const DEFAULT_RENDERER_WAIT_FOR_READY_TIMEOUT_MS = 30_000
+const DEFAULT_RENDERER_WAIT_FOR_READY_INTERVAL_MS = 500
+const DEFAULT_RENDERER_WAIT_FOR_READY_REQUEST_TIMEOUT_MS = 5_000
 
 /**
  * 利用者オプションを plugin 実行に必要な内部表現へ正規化する。
@@ -121,7 +129,101 @@ export function resolveRendererOptions(
     devUrl: renderer?.devUrl,
     devUrlEnvVar:
       renderer?.devUrlEnvVar ?? DEFAULT_RENDERER_DEV_SERVER_URL_ENV_VAR,
+    waitForReady: resolveRendererWaitForReadyOptions(renderer?.waitForReady),
   }
+}
+
+/**
+ * renderer dev server の到達待ち設定へ既定値を適用する。
+ *
+ * @param waitForReady 利用者が指定した待機設定
+ * @returns すべてのフィールドが具体化された待機設定
+ */
+export function resolveRendererWaitForReadyOptions(
+  waitForReady: ElectronRendererOptions['waitForReady'],
+): ResolvedElectronRendererWaitForReadyOptions {
+  return {
+    mode: waitForReady?.mode ?? 'auto',
+    timeoutMs:
+      waitForReady?.timeoutMs ?? DEFAULT_RENDERER_WAIT_FOR_READY_TIMEOUT_MS,
+    intervalMs:
+      waitForReady?.intervalMs ?? DEFAULT_RENDERER_WAIT_FOR_READY_INTERVAL_MS,
+    requestTimeoutMs:
+      waitForReady?.requestTimeoutMs ??
+      DEFAULT_RENDERER_WAIT_FOR_READY_REQUEST_TIMEOUT_MS,
+  }
+}
+
+/**
+ * 与えられた renderer URL に対して起動待機を挟むべきか判定する。
+ *
+ * `always` は external + http/https URL なら常に待機する。`auto` は loopback
+ * host のときだけ待機し、`off` は常に待機しない。
+ *
+ * @param rendererMode renderer の配置方式
+ * @param devServerUrl 判定対象の renderer dev server URL
+ * @param waitMode 解決済みの待機モード
+ * @returns spawn 前に待機すべきなら `true`
+ */
+export function shouldWaitForRendererReady(
+  rendererMode: ElectronRendererMode,
+  devServerUrl: string,
+  waitMode: ElectronRendererWaitForReadyMode,
+): boolean {
+  if (rendererMode !== 'external' || waitMode === 'off') {
+    return false
+  }
+
+  const rendererUrl = safeParseUrl(devServerUrl)
+
+  if (!rendererUrl || !isHttpRendererUrl(rendererUrl)) {
+    return false
+  }
+
+  if (waitMode === 'always') {
+    return true
+  }
+
+  return isLoopbackHostname(rendererUrl.hostname)
+}
+
+/**
+ * renderer dev server URL を安全に parse する。
+ *
+ * @param devServerUrl parse 対象の URL 文字列
+ * @returns parse 成功時は URL、失敗時は `undefined`
+ */
+function safeParseUrl(devServerUrl: string): URL | undefined {
+  try {
+    return new URL(devServerUrl)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * renderer URL が HTTP(S) か判定する。
+ *
+ * @param rendererUrl 判定対象の URL
+ * @returns `http:` または `https:` なら `true`
+ */
+function isHttpRendererUrl(rendererUrl: URL): boolean {
+  return rendererUrl.protocol === 'http:' || rendererUrl.protocol === 'https:'
+}
+
+/**
+ * hostname が loopback 宛てか判定する。
+ *
+ * @param hostname 判定対象の hostname
+ * @returns localhost、127.0.0.1、::1 のいずれかなら `true`
+ */
+function isLoopbackHostname(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  )
 }
 
 /**

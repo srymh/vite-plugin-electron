@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createElectronBuildCoordinator,
@@ -29,8 +29,11 @@ import {
   resolveDebugOptions,
   resolveElectronPluginOptions,
   resolveRendererOptions,
+  resolveRendererWaitForReadyOptions,
+  shouldWaitForRendererReady,
   validatePackageJsonMainField,
 } from '../src/options'
+import { waitForRendererReady } from '../src/renderer-ready'
 
 /** OS 間でパス区切りを揃える正規化ヘルパー */
 function p(s: string): string {
@@ -607,6 +610,12 @@ describe('electron plugin', () => {
       mode: 'external',
       devUrl: 'http://localhost:4173',
       devUrlEnvVar: 'ELECTRON_RENDERER_URL',
+      waitForReady: {
+        mode: 'auto',
+        timeoutMs: 30_000,
+        intervalMs: 500,
+        requestTimeoutMs: 5_000,
+      },
     })
     expect(
       getElectronSpawnEnv('http://localhost:4173', 'ELECTRON_RENDERER_URL', {
@@ -624,6 +633,12 @@ describe('electron plugin', () => {
       mode: 'internal',
       devUrl: undefined,
       devUrlEnvVar: 'VITE_DEV_SERVER_URL',
+      waitForReady: {
+        mode: 'auto',
+        timeoutMs: 30_000,
+        intervalMs: 500,
+        requestTimeoutMs: 5_000,
+      },
     })
     expect(
       resolveRendererOptions({
@@ -633,7 +648,166 @@ describe('electron plugin', () => {
       mode: 'external',
       devUrl: 'http://localhost:4173',
       devUrlEnvVar: 'VITE_DEV_SERVER_URL',
+      waitForReady: {
+        mode: 'auto',
+        timeoutMs: 30_000,
+        intervalMs: 500,
+        requestTimeoutMs: 5_000,
+      },
     })
+  })
+
+  it('renderer の waitForReady 設定へ既定値を適用する', () => {
+    // Arrange
+    const waitForReady = {
+      intervalMs: 250,
+    }
+
+    // Act
+    const resolved = resolveRendererWaitForReadyOptions(waitForReady)
+
+    // Assert
+    expect(resolved).toEqual({
+      mode: 'auto',
+      timeoutMs: 30_000,
+      intervalMs: 250,
+      requestTimeoutMs: 5_000,
+    })
+  })
+
+  it('auto モードでは loopback の external renderer URL だけ待機する', () => {
+    // Arrange / Act / Assert
+    expect(
+      shouldWaitForRendererReady('external', 'http://localhost:4173', 'auto'),
+    ).toBe(true)
+    expect(
+      shouldWaitForRendererReady('external', 'https://127.0.0.1:4173', 'auto'),
+    ).toBe(true)
+    expect(
+      shouldWaitForRendererReady('external', 'http://[::1]:4173', 'auto'),
+    ).toBe(true)
+    expect(
+      shouldWaitForRendererReady('external', 'https://example.com', 'auto'),
+    ).toBe(false)
+    expect(
+      shouldWaitForRendererReady('external', 'file:///tmp/index.html', 'auto'),
+    ).toBe(false)
+    expect(
+      shouldWaitForRendererReady('internal', 'http://localhost:4173', 'auto'),
+    ).toBe(false)
+  })
+
+  it('always と off で renderer 待機の有無を明示できる', () => {
+    // Arrange / Act / Assert
+    expect(
+      shouldWaitForRendererReady('external', 'https://example.com', 'always'),
+    ).toBe(true)
+    expect(
+      shouldWaitForRendererReady('external', 'custom://renderer', 'always'),
+    ).toBe(false)
+    expect(
+      shouldWaitForRendererReady('external', 'http://localhost:4173', 'off'),
+    ).toBe(false)
+  })
+
+  it('renderer dev server が応答すれば待機を終了する', async () => {
+    // Arrange
+    const fetchImpl = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    const sleep = vi.fn(async () => {})
+
+    // Act
+    await waitForRendererReady(
+      'http://localhost:4173',
+      {
+        mode: 'auto',
+        timeoutMs: 30_000,
+        intervalMs: 500,
+        requestTimeoutMs: 5_000,
+      },
+      {
+        fetchImpl,
+        sleep,
+        now: () => 0,
+      },
+    )
+
+    // Assert
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://localhost:4173',
+      expect.objectContaining({ method: 'HEAD' }),
+    )
+    expect(sleep).not.toHaveBeenCalled()
+  })
+
+  it('HEAD 非対応の renderer dev server には GET でフォールバックする', async () => {
+    // Arrange
+    const fetchImpl = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 405 }))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+
+    // Act
+    await waitForRendererReady(
+      'http://localhost:4173',
+      {
+        mode: 'auto',
+        timeoutMs: 30_000,
+        intervalMs: 500,
+        requestTimeoutMs: 5_000,
+      },
+      {
+        fetchImpl,
+        sleep: async () => {},
+        now: () => 0,
+      },
+    )
+
+    // Assert
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:4173',
+      expect.objectContaining({ method: 'HEAD' }),
+    )
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:4173',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('renderer dev server が応答しなければタイムアウトで失敗する', async () => {
+    // Arrange
+    let currentTime = 0
+    const fetchImpl = vi
+      .fn<typeof globalThis.fetch>()
+      .mockRejectedValue(new TypeError('connect ECONNREFUSED'))
+    const sleep = vi.fn(async (delayMs: number) => {
+      currentTime += delayMs
+    })
+
+    // Act / Assert
+    await expect(
+      waitForRendererReady(
+        'http://localhost:4173',
+        {
+          mode: 'auto',
+          timeoutMs: 1_000,
+          intervalMs: 500,
+          requestTimeoutMs: 100,
+        },
+        {
+          fetchImpl,
+          sleep,
+          now: () => currentTime,
+        },
+      ),
+    ).rejects.toThrow(
+      '[vite-plugin-electron] Renderer URL "http://localhost:4173" did not respond within 1000ms. Electron launch was skipped.',
+    )
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
   })
 
   it('external renderer mode 用に client build を空 entry へ差し替える', () => {

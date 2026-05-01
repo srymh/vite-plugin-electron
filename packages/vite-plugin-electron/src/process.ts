@@ -7,8 +7,14 @@ import {
   getElectronSpawnEnv,
   isProcessStopRequired,
   isSuccessfulWindowsTaskkillExitCode,
+  shouldWaitForRendererReady,
 } from './options'
-import { type ResolvedElectronDebugOptions } from './types'
+import { waitForRendererReady } from './renderer-ready'
+import {
+  type ElectronRendererMode,
+  type ResolvedElectronDebugOptions,
+  type ResolvedElectronRendererWaitForReadyOptions,
+} from './types'
 
 /**
  * Electron child process の起動に必要な入力。
@@ -19,8 +25,10 @@ import { type ResolvedElectronDebugOptions } from './types'
 type LaunchElectronProcessOptions = {
   debug: ResolvedElectronDebugOptions
   rootDir: string
+  rendererMode: ElectronRendererMode
   devServerUrl: string
   devServerUrlEnvVar: string
+  rendererWaitForReady: ResolvedElectronRendererWaitForReadyOptions
 }
 
 /** SIGTERM 送信後に SIGKILL へ昇格するまでの待ち時間 (ms)。 */
@@ -33,7 +41,6 @@ const SIGKILL_TIMEOUT_MS = 3_000
 const TASKKILL_TIMEOUT_MS = 10_000
 
 const require = createRequire(import.meta.url)
-const electronBinary = require('electron')
 
 /**
  * 既存の Electron process を停止し、新しい process を起動する。
@@ -50,7 +57,7 @@ export async function restartElectronProcess(
   options: LaunchElectronProcessOptions,
 ): Promise<ChildProcess> {
   await stopElectronProcess(currentElectronProcess)
-  return launchElectronProcess(options)
+  return await launchElectronProcess(options)
 }
 
 /**
@@ -67,10 +74,24 @@ export async function restartElectronProcess(
  * @param options 起動設定
  * @returns 起動した child process
  */
-export function launchElectronProcess(
+export async function launchElectronProcess(
   options: LaunchElectronProcessOptions,
-): ChildProcess {
+): Promise<ChildProcess> {
+  if (
+    shouldWaitForRendererReady(
+      options.rendererMode,
+      options.devServerUrl,
+      options.rendererWaitForReady.mode,
+    )
+  ) {
+    await waitForRendererReady(
+      options.devServerUrl,
+      options.rendererWaitForReady,
+    )
+  }
+
   const electronArgs = getElectronSpawnArgs(options.debug, options.rootDir)
+  const electronBinary = getElectronBinary()
 
   if (options.debug.enabled) {
     console.log(
@@ -85,6 +106,18 @@ export function launchElectronProcess(
     env: getElectronSpawnEnv(options.devServerUrl, options.devServerUrlEnvVar),
     detached: !isWindows,
   })
+}
+
+/**
+ * Electron executable の解決を必要時まで遅延する。
+ *
+ * waitForRendererReady のような pure helper を import するだけのテストで Electron 本体を
+ * 解決しないようにし、module import 時の副作用を最小化する。
+ *
+ * @returns 現在の環境で利用する Electron executable path
+ */
+function getElectronBinary(): string {
+  return require('electron') as string
 }
 
 /**

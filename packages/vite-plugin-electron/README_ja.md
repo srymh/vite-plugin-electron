@@ -84,6 +84,9 @@ preload は CJS（`.cjs`）で出力されます。main は ESM（`.js`）。
 | `mode` | `'internal' \| 'external'` | 自動推論 | renderer の配置方式 |
 | `devUrl` | `string` | — | 外部 renderer dev server の URL |
 | `devUrlEnvVar` | `string` | `'VITE_DEV_SERVER_URL'` | renderer URL を渡す環境変数名 |
+| `waitForReady` | `ElectronRendererWaitForReadyOptions` | auto | external mode で Electron 起動前に待機する設定 |
+
+`waitForReady` では `mode: 'auto' | 'always' | 'off'` と、必要に応じて `timeoutMs`、`intervalMs`、`requestTimeoutMs` を指定できます。`auto` では `localhost`、`127.0.0.1`、`::1` のような loopback の `http`/`https` URL だけを待機対象にします。タイムアウト時は Electron を起動せず、dev ログにエラーを出します。
 
 preload entry の書式、制約、ビルド既定値の詳細は [オプション詳細](../../docs/docs/options.md) を参照してください。
 
@@ -101,12 +104,14 @@ import {
   type ElectronDebugOptions,
   type ElectronRendererMode,
   type ElectronRendererOptions,
+  type ElectronRendererWaitForReadyMode,
+  type ElectronRendererWaitForReadyOptions,
 } from '@srymh/vite-plugin-electron'
 ```
 
 ## ビルド / 開発の動作
 
-**`vite dev`**: renderer dev server の起動、`electron_main`（と `electron_preload`）の watch build、build 完了時の Electron 再起動を行います。内部 scheduler が短時間の複数回 build を coalesce し、不要な再起動を抑制します。
+**`vite dev`**: renderer dev server の起動、`electron_main`（と `electron_preload`）の watch build、build 完了時の Electron 再起動を行います。external mode では、初回起動と各 restart の前に設定された renderer URL の到達待ちを入れられます。内部 scheduler が短時間の複数回 build を coalesce し、不要な再起動を抑制します。
 
 **`vite build`**: client、`electron_main`、`electron_preload` environment をビルドします。`builder: {}` を自動で有効化するため、`vite build --app` は不要です。
 

@@ -34,6 +34,8 @@ export type {
   ElectronPreloadOptions,
   ElectronRendererMode,
   ElectronRendererOptions,
+  ElectronRendererWaitForReadyMode,
+  ElectronRendererWaitForReadyOptions,
 } from './types'
 
 /**
@@ -188,8 +190,10 @@ export function electron(options: ElectronPluginOptions): Plugin {
         debug: resolvedOptions.debugOptions,
         rootDir: resolvedOptions.rootDir,
         outDirs: getUniqueOutDirs(resolvedOptions),
+        rendererMode: resolvedOptions.rendererOptions.mode,
         rendererDevUrl: resolvedOptions.rendererOptions.devUrl,
         rendererDevUrlEnvVar: resolvedOptions.rendererOptions.devUrlEnvVar,
+        rendererWaitForReady: resolvedOptions.rendererOptions.waitForReady,
         onRestart() {},
       })
     },

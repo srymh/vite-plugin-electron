@@ -34,11 +34,23 @@ export type ElectronDebugOptions = {
 /** renderer の配置方式を表す公開設定。 */
 export type ElectronRendererMode = 'internal' | 'external'
 
+/** renderer dev server の到達待ち方式を表す公開設定。 */
+export type ElectronRendererWaitForReadyMode = 'auto' | 'always' | 'off'
+
+/** external renderer の起動待ちを制御する公開設定。 */
+export type ElectronRendererWaitForReadyOptions = {
+  mode?: ElectronRendererWaitForReadyMode
+  timeoutMs?: number
+  intervalMs?: number
+  requestTimeoutMs?: number
+}
+
 /** Electron main が参照する renderer の場所を制御する公開設定。 */
 export type ElectronRendererOptions = {
   mode?: ElectronRendererMode
   devUrl?: string
   devUrlEnvVar?: string
+  waitForReady?: ElectronRendererWaitForReadyOptions
 }
 
 /** preload entry 名から source path を引く正規化済み map。 */
@@ -100,10 +112,19 @@ export type ResolvedElectronDebugOptions = {
 }
 
 /** 内部で常に具体値へ解決した renderer 設定。 */
+export type ResolvedElectronRendererWaitForReadyOptions = {
+  mode: ElectronRendererWaitForReadyMode
+  timeoutMs: number
+  intervalMs: number
+  requestTimeoutMs: number
+}
+
+/** 内部で常に具体値へ解決した renderer 設定。 */
 export type ResolvedElectronRendererOptions = {
   mode: ElectronRendererMode
   devUrl?: string
   devUrlEnvVar: string
+  waitForReady: ResolvedElectronRendererWaitForReadyOptions
 }
 
 /**
